@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <title>TEST</title>
+  <title>115年度沙腸袋驗收</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
@@ -33,7 +33,6 @@
     #map {
       height: 100%;
     }
-    /* 手機 (長寬比小於 1 → 高 > 寬)     @media (max-aspect-ratio: 1/1) {#container {     }}*/
     /* 圖片區塊 RWD */
     .image-wrapper {
       width: 100%;
@@ -181,7 +180,7 @@
 </head>
 
 <body>
-  <h1 class="text-center my-3">TEST</h1>
+  <h1 class="text-center my-3">115年度沙腸袋驗收</h1>
   <div id="container" class="mt-3">
     <div id="map">
       <div class="modal fade" id="featureModal" tabindex="-1" role="dialog">
@@ -209,13 +208,30 @@
         </div>
       </div>
     </div>
-  </div>
-
     </div>
   </div>
 
 <script>
   var map = L.map('map', {center: [22.689,120.436], zoom: 15, zoomControl: true, renderer: L.canvas()});
+  const modalEl = document.getElementById('featureModal');
+  // Modal 開啟時停用地圖操作
+  modalEl.addEventListener('shown.bs.modal', () => {
+    map.dragging.disable();
+    map.scrollWheelZoom.disable();
+    map.doubleClickZoom.disable();
+    map.boxZoom.disable();
+    map.keyboard.disable();
+    if (map.tap) map.tap.disable();
+  });
+  // Modal 關閉時恢復地圖操作
+  modalEl.addEventListener('hidden.bs.modal', () => {
+    map.dragging.enable();
+    map.scrollWheelZoom.enable();
+    map.doubleClickZoom.enable();
+    map.boxZoom.enable();
+    map.keyboard.enable();
+    if (map.tap) map.tap.enable();
+  });
   L.control.scale({position: 'bottomleft'}).addTo(map);
   var basemaps = [
     L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', {
@@ -243,15 +259,13 @@
   try {
     // 同時抓取所有資料，縮短載入時間
     const [resLayer, resPoint, resColor] = await Promise.all([
-      fetch("https://joe123890508.github.io/720DregreeMap/layer.json"),
-      fetch("https://joe123890508.github.io/720DregreeMap/point.geojson"),
-      fetch("https://joe123890508.github.io/720DregreeMap/color.json")
+      fetch("https://joe123890508.github.io/Geotextile_Tube/layer.json"),
+      fetch("https://joe123890508.github.io/Geotextile_Tube/point.geojson"),
+      fetch("https://joe123890508.github.io/Geotextile_Tube/color.json")
     ]);
-
     const compareData = await resLayer.json();
     const geojson = await resPoint.json();
     const colorMap = await resColor.json();
-
     processGeoJson(geojson, compareData, colorMap);
   } catch (error) {
     console.error("Data loading error:", error);
@@ -263,20 +277,16 @@ function processGeoJson(json, compareData, colorMap) {
   let layersByCategory = {};
   // 建立圖層控制項
   const controlLayers = L.control.layers(null, null, { collapsed: true }).addTo(map);
-
   // 1. 預處理屬性轉換 (只需跑一次)
   json.features.forEach(feature => {
     let rawLayer = feature.properties.layer;
     feature.properties.layer = compareData[rawLayer] || `圖層 ${rawLayer}`;
   });
-
   // 2. 依照分類建立 Leaflet 圖層
   json.features.forEach(feature => {
     let category = feature.properties.layer;
-
     if (!layersByCategory[category]) {
       let color = colorMap[category] || "black";
-
       // 建立該類別的 GeoJSON 容器
       layersByCategory[category] = L.geoJSON(null, {
         pointToLayer: (f, latlng) => {
@@ -297,10 +307,8 @@ function processGeoJson(json, compareData, colorMap) {
               table += `<tr><th style="width:40%">${key}</th><td>${f.properties[key]}</td></tr>`;
             }
             table += '</table>';
-
             document.getElementById("feature-info").innerHTML = table;
             document.getElementById("feature-title1").innerHTML = `點號：${f.properties.P || '未命名'}`;
-            
             // 觸發 Bootstrap Modal
             const modalEl = document.getElementById('featureModal');
             const featureModal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -308,17 +316,14 @@ function processGeoJson(json, compareData, colorMap) {
           });
         }
       });
-
       // 組合圖層清單顯示的 HTML (色塊圓點 + 名稱)
       let nameWithIcon = `
         <span style="display:inline-block; width:12px; height:12px; background:${color}; 
         margin-right:6px; border-radius:50%; border: 1px solid #666; vertical-align: middle;"></span>
         ${category}`;
-      
       controlLayers.addOverlay(layersByCategory[category], nameWithIcon);
       map.addLayer(layersByCategory[category]); // 預設開啟顯示
     }
-
     // 將 Feature 加入對應的圖層組
     layersByCategory[category].addData(feature);
   });
@@ -332,8 +337,7 @@ loadAllData();
     forcePseudoFullscreen: true,
     fullscreenElement: false
   }).addTo(map);
-
-   const thetaURL = "https://joe123890508.github.io/720DregreeMap/bar.geojson"
+   const thetaURL = "https://joe123890508.github.io/Geotextile_Tube/bar.geojson"
   fetch(thetaURL)
     .then(response => {
       if (!response.ok) throw new Error("無法載入資料");
@@ -351,15 +355,13 @@ L.geoJSON(data, {
     };
   },
   onEachFeature: function (feature, layer) {
-    // 雖然你不需要點擊事件，但通常會綁定一個簡單的滑鼠標籤 (Tooltip)
+    // 綁定一個簡單的滑鼠標籤 (Tooltip)
     if (feature.properties && feature.properties.name) {
-      layer.bindTooltip(feature.properties.name, { sticky: true });
+      layer.bindTooltip(feature.properties.名稱, { sticky: true });
     }
   }
 }).addTo(map);
   })
-
-
   </script>
 </body>
 </html>
