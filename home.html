@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>TEST</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/leaflet.fullscreen.css"/>
+  <script src="https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/Leaflet.fullscreen.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+    }
+    .form-container {
+      width: 100%;
+      border: 1px solid #ccc;
+      padding: 1em;
+      margin: 1em auto;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    /* 地圖 RWD */
+    #container {
+      height: 90vh; /* 40% 螢幕高度 */
+      min-height: 250px;
+      margin: 10px 0;
+    }
+    #map {
+      height: 100%;
+    }
+    /* 手機 (長寬比小於 1 → 高 > 寬)     @media (max-aspect-ratio: 1/1) {#container {     }}*/
+    /* 圖片區塊 RWD */
+    .image-wrapper {
+      width: 100%;
+      max-width: 100%;
+      aspect-ratio: 16/9;
+      margin: 10px 0;
+    }
+    #preview-image {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: none;
+    }
+    #preview-image.visible {
+      display: block;
+    }
+    /* 小螢幕優化 */
+    @media (max-width: 576px) {
+      select, input, textarea, button {
+        width: 100% !important;
+      }
+    }
+    .form-preview-value {
+      margin: 0.2em 0;
+      white-space:pre-wrap;
+    }
+    .form-preview-value-people {
+      white-space: pre-wrap;
+      width: 100vw;
+      position: relative;
+      box-sizing: border-box;
+    }
+    .basemaps {
+      padding: 4px;
+    }
+    .basemaps.closed .basemap {
+      display: none;
+    }
+    .basemaps.closed .basemap.alt {
+      display: inline-block;
+    }
+    .basemaps.closed .basemap.alt h4 {
+      display: none;
+    }
+    .basemap {
+      display: inline-block; /* todo: flexbox? */
+      cursor: pointer;
+    }
+    .basemap.active img {
+      border-color: orange;
+      box-shadow: 2px 2px 4px #000;
+    }
+    .basemap img {
+      width: 64px;
+      border: 2px solid #FFF;
+      margin: 0 2px;
+      border-radius: 40px;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.65)
+    }
+    #feature-info table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+      margin-top: 10px;
+    }
+    #feature-info th,
+    #feature-info td {
+      padding: 8px 12px;
+      border: 1px solid #dee2e6;
+      vertical-align: top;
+    }
+    #feature-info th {
+      background-color: #f8f9fa;
+      color: #343a40;
+      text-align: left;
+      width: 30%;
+      font-weight: 600;
+    }
+    #feature-info td {
+      text-align: right;
+    }
+    #feature-info tr:hover {
+      background-color: #e9f5ff;
+    }
+    .spinner {
+      font-size: 20px;
+      color: #333;
+    }
+    /* 清單項目標籤 */
+    .leaflet-control-layers label {
+      display: flex;
+      align-items: center;
+      padding: 6px 8px;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: background-color 0.3s ease;
+      user-select: none;
+    }
+    /* 滑鼠滑過項目改色 */
+    .leaflet-control-layers label:hover {
+      background-color: #f0f8ff;
+    }
+    /* checkbox 和 radio 按鈕調整大小 */
+    .leaflet-control-layers input[type="checkbox"],
+    .leaflet-control-layers input[type="radio"] {
+      margin-right: 10px;
+      transform: scale(1.2);
+      cursor: pointer;
+    }
+    /* 圖層名稱字體顏色和大小 */
+    .leaflet-control-layers label span {
+      font-size: 14px;
+      color: #333;
+    }
+    /* 捲軸美化（當圖層很多時） */
+    .leaflet-control-layers-list {
+      max-height: 250px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .leaflet-control-layers-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    .leaflet-control-layers-list::-webkit-scrollbar-thumb {
+      background-color: #4a90e2;
+      border-radius: 3px;
+    }
+    .modal-body{
+      display: flex;
+      justify-content: center; /* 水平置中 */
+      align-items: center;     /* 垂直置中 */
+      flex-direction: column;  /* 子元素垂直排列 */
+      text-align: center;      /* 子元素文字置中 */
+    }
+    #theta-viewer {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      direction: column;
+      width: 90% !important;
+      max-width: 100%;
+      height: 75vh !important;
+    }
+  </style>
+</head>
+
+<body>
+  <h1 class="text-center my-3">TEST</h1>
+  <div id="container" class="mt-3">
+    <div id="map">
+      <div class="modal fade" id="featureModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h4 class="modal-title text-primary" id="feature-title1"></h4>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="feature-info"></div>
+            <div class="modal-footer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal fade" id="point" tabindex="-1" role="dialog">
+        <div class="modal-dialog" style="max-width: 85%;" role="dialog">
+          <div class="modal-content" style="max-width: 100%;">
+            <div class="modal-header">
+              <h4 class="modal-title text-primary" id="feature-title2"></h4>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="max-width: 100%;"></div>
+            <div class="modal-footer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    </div>
+  </div>
+
+<script>
+  var map = L.map('map', {center: [22.689,120.436], zoom: 15, zoomControl: true, renderer: L.canvas()});
+  L.control.scale({position: 'bottomleft'}).addTo(map);
+  var basemaps = [
+    L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', {
+    maxZoom: 20,
+    id: 'EMAP',
+    label: '通用電子地圖' }),
+    L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', {
+    maxZoom: 20,
+    id: 'PHOTO2',
+    label: '正射影像圖' }),
+    L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', {
+      maxZoom: 20,
+      id: 'LUIMAP',
+      label: '土地使用調查' })
+  ];
+  L.Control.Basemaps=L.Control.extend({_map:null,includes:L.Evented?L.Evented.prototype:L.Mixin.Event,options:{position:"bottomright",tileX:0,tileY:0,tileZ:0,layers:[]},basemap:null,onAdd:function(e){this._map=e;var t=L.DomUtil.create("div","basemaps leaflet-control closed");return L.DomEvent.disableClickPropagation(t),L.Browser.touch||L.DomEvent.disableScrollPropagation(t),this.options.basemaps.forEach(function(s,o){var a,i="basemap";if(0===o?(this.basemap=s,this._map.addLayer(s),i+=" active"):1===o&&(i+=" alt"),s.options.iconURL)a=s.options.iconURL;else{var l={x:this.options.tileX,y:this.options.tileY};if(a=L.Util.template(s._url,L.extend({s:s._getSubdomain(l),x:l.x,y:s.options.tms?s._globalTileRange.max.y-l.y:l.y,z:this.options.tileZ},s.options)),s instanceof L.TileLayer.WMS){s._map=e;var n=s.options.crs||e.options.crs,r=L.extend({},s.wmsParams),m=parseFloat(r.version);r[m>=1.3?"crs":"srs"]=n.code;var p=L.point(l);p.z=this.options.tileZ;var c=s._tileCoordsToBounds(p),d=n.project(c.getNorthWest()),h=n.project(c.getSouthEast()),v=(m>=1.3&&n===L.CRS.EPSG4326?[h.y,d.x,d.y,h.x]:[d.x,h.y,h.x,d.y]).join(",");a+=L.Util.getParamString(r,a,s.options.uppercase)+(s.options.uppercase?"&BBOX=":"&bbox=")+v}}var b=L.DomUtil.create("div",i,t),u=L.DomUtil.create("img",null,b);u.src=a,s.options&&s.options.label&&(u.title=s.options.label),L.DomEvent.on(b,"click",function(){if(this.options.basemaps.length>2&&L.Browser.mobile&&L.DomUtil.hasClass(t,"closed"))L.DomUtil.removeClass(t,"closed");else if(s!=this.basemap){e.removeLayer(this.basemap),e.addLayer(s),s.bringToBack(),e.fire("baselayerchange",s),this.basemap=s,L.DomUtil.removeClass(t.getElementsByClassName("basemap active")[0],"active"),L.DomUtil.addClass(b,"active");var a=(o+1)%this.options.basemaps.length;L.DomUtil.removeClass(t.getElementsByClassName("basemap alt")[0],"alt"),L.DomUtil.addClass(t.getElementsByClassName("basemap")[a],"alt"),L.DomUtil.addClass(t,"closed")}},this)},this),this.options.basemaps.length>2&&!L.Browser.mobile&&(L.DomEvent.on(t,"mouseenter",function(){L.DomUtil.removeClass(t,"closed")},this),L.DomEvent.on(t,"mouseleave",function(){L.DomUtil.addClass(t,"closed")},this)),this._container=t,this._container}}),L.control.basemaps=function(e){return new L.Control.Basemaps(e)};
+  map.addControl(L.control.basemaps({
+    basemaps: basemaps,
+    tileX: 854,
+    tileY: 444,
+    tileZ: 10
+  }));
+
+  async function loadAllData() {
+  try {
+    // 同時抓取所有資料，縮短載入時間
+    const [resLayer, resPoint, resColor] = await Promise.all([
+      fetch("https://joe123890508.github.io/720DregreeMap/layer.json"),
+      fetch("https://joe123890508.github.io/720DregreeMap/point.geojson"),
+      fetch("https://joe123890508.github.io/720DregreeMap/color.json")
+    ]);
+
+    const compareData = await resLayer.json();
+    const geojson = await resPoint.json();
+    const colorMap = await resColor.json();
+
+    processGeoJson(geojson, compareData, colorMap);
+  } catch (error) {
+    console.error("Data loading error:", error);
+    alert("資料載入失敗，請確認網路連線！");
+  }
+}
+
+function processGeoJson(json, compareData, colorMap) {
+  let layersByCategory = {};
+  // 建立圖層控制項
+  const controlLayers = L.control.layers(null, null, { collapsed: true }).addTo(map);
+
+  // 1. 預處理屬性轉換 (只需跑一次)
+  json.features.forEach(feature => {
+    let rawLayer = feature.properties.layer;
+    feature.properties.layer = compareData[rawLayer] || `圖層 ${rawLayer}`;
+  });
+
+  // 2. 依照分類建立 Leaflet 圖層
+  json.features.forEach(feature => {
+    let category = feature.properties.layer;
+
+    if (!layersByCategory[category]) {
+      let color = colorMap[category] || "black";
+
+      // 建立該類別的 GeoJSON 容器
+      layersByCategory[category] = L.geoJSON(null, {
+        pointToLayer: (f, latlng) => {
+          return L.circleMarker(latlng, {
+            radius: 7,
+            fillColor: color,
+            color: "#fff",
+            weight: 1.5,
+            opacity: 1,
+            fillOpacity: 0.8
+          });
+        },
+        onEachFeature: (f, layer) => {
+          layer.on("click", () => {
+            // 彈窗內的表格資訊
+            let table = '<table class="table table-sm table-striped mb-0">';
+            for (let key in f.properties) {
+              table += `<tr><th style="width:40%">${key}</th><td>${f.properties[key]}</td></tr>`;
+            }
+            table += '</table>';
+
+            document.getElementById("feature-info").innerHTML = table;
+            document.getElementById("feature-title1").innerHTML = `點號：${f.properties.P || '未命名'}`;
+            
+            // 觸發 Bootstrap Modal
+            const modalEl = document.getElementById('featureModal');
+            const featureModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            featureModal.show();
+          });
+        }
+      });
+
+      // 組合圖層清單顯示的 HTML (色塊圓點 + 名稱)
+      let nameWithIcon = `
+        <span style="display:inline-block; width:12px; height:12px; background:${color}; 
+        margin-right:6px; border-radius:50%; border: 1px solid #666; vertical-align: middle;"></span>
+        ${category}`;
+      
+      controlLayers.addOverlay(layersByCategory[category], nameWithIcon);
+      map.addLayer(layersByCategory[category]); // 預設開啟顯示
+    }
+
+    // 將 Feature 加入對應的圖層組
+    layersByCategory[category].addData(feature);
+  });
+}
+
+// 執行載入
+loadAllData();
+  L.control.fullscreen({
+    position: 'topleft',
+    forceSeparateButton: true,
+    forcePseudoFullscreen: true,
+    fullscreenElement: false
+  }).addTo(map);
+
+   const thetaURL = "https://joe123890508.github.io/720DregreeMap/bar.geojson"
+  fetch(thetaURL)
+    .then(response => {
+      if (!response.ok) throw new Error("無法載入資料");
+      return response.json();
+    })
+  .then(data => {
+L.geoJSON(data, {
+  style: function(feature) {
+    return {
+      fillColor: 'orange', // 填滿顏色
+      weight: 2,            // 邊框寬度
+      opacity: 1,           // 邊框透明度
+      color: 'black',       // 邊框顏色
+      fillOpacity: 0.6      // 填滿透明度
+    };
+  },
+  onEachFeature: function (feature, layer) {
+    // 雖然你不需要點擊事件，但通常會綁定一個簡單的滑鼠標籤 (Tooltip)
+    if (feature.properties && feature.properties.name) {
+      layer.bindTooltip(feature.properties.name, { sticky: true });
+    }
+  }
+}).addTo(map);
+  })
+
+
+  </script>
+</body>
+</html>
