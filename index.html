@@ -26,12 +26,13 @@
     }
     /* 地圖 RWD */
     #container {
-      height: 90vh; /* 40% 螢幕高度 */
       min-height: 250px;
       margin: 10px 0;
     }
     #map {
-      height: 100%;
+      width: 100%;
+      height: 90vh;
+      min-height: 400px;
     }
     /* 圖片區塊 RWD */
     .image-wrapper {
@@ -171,10 +172,70 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      direction: column;
+      flex-direction: column;
       width: 90% !important;
       max-width: 100%;
       height: 75vh !important;
+    }
+
+    /* 照相機圖案 */
+    .camera-marker-wrapper {
+      background: transparent;
+      border: none;
+    }
+    .camera-marker { /* 主體 */
+      --size: 40px;
+      position: relative;
+      width: var(--size);
+      height: calc(var(--size) * 0.64);
+      background: #2d3748;
+      border-radius: calc(var(--size) * 0.12);
+      border: calc(var(--size) * 0.04) solid #1a202c;
+      box-sizing: border-box;
+    }
+    .camera-top { /* 上方凸起 */
+      position: absolute;
+      top: calc(var(--size) * -0.16);
+      left: calc(var(--size) * 0.16);
+      width: calc(var(--size) * 0.36);
+      height: calc(var(--size) * 0.2);
+      background: #4a5568;
+      border-radius: calc(var(--size) * 0.08)
+                     calc(var(--size) * 0.08)
+                     0 0;}
+    .camera-lens { /* 鏡頭 */
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: calc(var(--size) * 0.36);
+      height: calc(var(--size) * 0.36);
+      transform: translate(-50%, -50%);
+      background: #1a202c;
+      border: calc(var(--size) * 0.06) solid #a0aec0;
+      border-radius: 50%;
+      box-sizing: border-box;
+    }
+    
+    .camera-lens::after { /* 鏡頭中心 */
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: calc(var(--size) * 0.12);
+      height: calc(var(--size) * 0.12);
+      transform: translate(-50%, -50%);
+      background: #63b3ed;
+      border-radius: 50%;
+    }
+    /* 閃光燈 */
+    .camera-flash {
+      position: absolute;
+      top: calc(var(--size) * 0.12);
+      right: calc(var(--size) * 0.12);
+      width: calc(var(--size) * 0.12);
+      height: calc(var(--size) * 0.12);
+      background: #f6e05e;
+      border-radius: 50%;
     }
   </style>
 </head>
@@ -207,7 +268,6 @@
           </div>
         </div>
       </div>
-    </div>
     </div>
   </div>
 
@@ -329,7 +389,7 @@ function processGeoJson(json, compareData, colorMap) {
   });
 }
 
-// 執行載入
+// 載入丁壩圖層
 loadAllData();
   L.control.fullscreen({
     position: 'topleft',
@@ -356,11 +416,78 @@ L.geoJSON(data, {
   },
   onEachFeature: function (feature, layer) {
     // 綁定一個簡單的滑鼠標籤 (Tooltip)
-    if (feature.properties && feature.properties.name) {
+    if (feature.properties && feature.properties.名稱) {
       layer.bindTooltip(feature.properties.名稱, { sticky: true });
     }
   }
 }).addTo(map);
+  })
+
+  
+function createCameraIcon(size = 20, color = '#2d3748') {
+  return L.divIcon({
+    className: 'camera-marker-wrapper',
+    html: `
+      <div
+        class="camera-marker"
+        style="
+          --size:${size}px;
+          background:${color};
+        "
+      >
+        <div class="camera-top"></div>
+        <div class="camera-lens"></div>
+        <div class="camera-flash"></div>
+      </div>
+    `,
+    iconSize: [size, size * 0.64],
+    iconAnchor: [
+      size / 2,
+      (size * 0.64) / 2
+    ]
+  });
+}
+
+const mdnURL = "https://joe123890508.github.io/Geotextile_Tube/photo.geojson";
+fetch(mdnURL)
+  .then(response => {
+    if (!response.ok) {
+      throw new Error("GeoJSON 載入失敗");
+    }
+    return response.json();
+  })
+  .then(data => {
+    L.geoJSON(data, {
+      pointToLayer: function(feature, latlng) {
+        return L.marker(latlng, {
+          icon: createCameraIcon(20, '#383838')
+        });
+      },
+      onEachFeature: function(feature, layer) {
+        layer.on("click", function() {
+          // 取得屬性
+          const props = feature.properties || {};
+          // title
+          const title = props.title || "未命名";
+          // url
+          const imageUrl = props.url || "";
+          // 設定 Modal 標題
+          document.getElementById("feature-title2").innerHTML = title;
+          // 設定 Modal 內容
+          document.querySelector("#point .modal-body").innerHTML = `
+            <img 
+              src="${imageUrl}"
+              class="img-fluid rounded"
+              style="max-height:70vh; object-fit:contain;"
+            >
+          `;
+          // 開啟 Modal
+          const modalEl = document.getElementById('point');
+          const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+          modal.show();
+        });
+      }
+    }).addTo(map);
   })
   </script>
 </body>
