@@ -1,8 +1,12 @@
 {
 "type": "FeatureCollection",
-"name": "photo",
+"name": "photo_points",
 "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
 "features": [
-{ "type": "Feature", "properties": { "title": "標題測試", "url": "https://duk.tw/AdHXvz.jpg" }, "geometry": { "type": "Point", "coordinates": [ 120.455584615443854, 22.700394073628321 ] } }
+{ "type": "Feature", "properties": { "url": "https://duk.tw/1uwJS6.jpg", "title": "六號丁壩前段" }, "geometry": { "type": "Point", "coordinates": [ 120.4558025, 22.70060972 ] } },
+{ "type": "Feature", "properties": { "url": "https://duk.tw/3QVWyF.jpg", "title": "六號丁壩中段" }, "geometry": { "type": "Point", "coordinates": [ 120.4548092, 22.69924111 ] } },
+{ "type": "Feature", "properties": { "url": "https://duk.tw/XoeR2r.jpg", "title": "五號丁壩前段" }, "geometry": { "type": "Point", "coordinates": [ 120.4542436, 22.69823111 ] } },
+{ "type": "Feature", "properties": { "url": "https://duk.tw/R6UZTE.jpg", "title": "五號丁壩回填" }, "geometry": { "type": "Point", "coordinates": [ 120.4532475, 22.69815472 ] } },
+{ "type": "Feature", "properties": { "url": "https://duk.tw/J1gbb0.jpg", "title": "高灘地保護工" }, "geometry": { "type": "Point", "coordinates": [ 120.4531814, 22.69815861 ] } }
 ]
 }

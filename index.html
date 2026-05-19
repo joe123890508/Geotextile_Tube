@@ -273,25 +273,39 @@
 
 <script>
   var map = L.map('map', {center: [22.689,120.436], zoom: 15, zoomControl: true, renderer: L.canvas()});
-  const modalEl = document.getElementById('featureModal');
-  // Modal 開啟時停用地圖操作
-  modalEl.addEventListener('shown.bs.modal', () => {
-    map.dragging.disable();
-    map.scrollWheelZoom.disable();
-    map.doubleClickZoom.disable();
-    map.boxZoom.disable();
-    map.keyboard.disable();
-    if (map.tap) map.tap.disable();
-  });
-  // Modal 關閉時恢復地圖操作
-  modalEl.addEventListener('hidden.bs.modal', () => {
-    map.dragging.enable();
-    map.scrollWheelZoom.enable();
-    map.doubleClickZoom.enable();
-    map.boxZoom.enable();
-    map.keyboard.enable();
-    if (map.tap) map.tap.enable();
-  });
+  // 控制圖層開關
+  let controlLayers;
+  controlLayers = L.control.layers(null, null, {
+    collapsed: true
+  }).addTo(map);
+  // 停用地圖操作函式
+  function bindModalMapControl(modalId) {
+    const modalEl = document.getElementById(modalId);
+    // Modal 開啟時停用地圖操作
+    modalEl.addEventListener('shown.bs.modal', () => {
+      map.dragging.disable();
+      map.scrollWheelZoom.disable();
+      map.doubleClickZoom.disable();
+      map.boxZoom.disable();
+      map.keyboard.disable();
+      if (map.tap) {
+        map.tap.disable();
+      }
+    });
+    // Modal 關閉時恢復地圖操作
+    modalEl.addEventListener('hidden.bs.modal', () => {
+      map.dragging.enable();
+      map.scrollWheelZoom.enable();
+      map.doubleClickZoom.enable();
+      map.boxZoom.enable();
+      map.keyboard.enable();
+      if (map.tap) {
+        map.tap.enable();
+      }
+    });
+  }
+  bindModalMapControl('featureModal');
+  bindModalMapControl('point');
   L.control.scale({position: 'bottomleft'}).addTo(map);
   var basemaps = [
     L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', {
@@ -334,9 +348,8 @@
 }
 
 function processGeoJson(json, compareData, colorMap) {
-  let layersByCategory = {};
   // 建立圖層控制項
-  const controlLayers = L.control.layers(null, null, { collapsed: true }).addTo(map);
+  let layersByCategory = {};
   // 1. 預處理屬性轉換 (只需跑一次)
   json.features.forEach(feature => {
     let rawLayer = feature.properties.layer;
@@ -423,7 +436,6 @@ L.geoJSON(data, {
 }).addTo(map);
   })
 
-  
 function createCameraIcon(size = 20, color = '#2d3748') {
   return L.divIcon({
     className: 'camera-marker-wrapper',
@@ -447,17 +459,12 @@ function createCameraIcon(size = 20, color = '#2d3748') {
     ]
   });
 }
-
-const mdnURL = "https://joe123890508.github.io/Geotextile_Tube/photo.geojson";
-fetch(mdnURL)
-  .then(response => {
-    if (!response.ok) {
-      throw new Error("GeoJSON 載入失敗");
-    }
-    return response.json();
-  })
+const photoURL = "https://joe123890508.github.io/Geotextile_Tube/photo.geojson";
+fetch(photoURL)
+  .then(response => response.json())
   .then(data => {
-    L.geoJSON(data, {
+    // 建立 GeoJSON 圖層
+    const photoLayer = L.geoJSON(data, {
       pointToLayer: function(feature, latlng) {
         return L.marker(latlng, {
           icon: createCameraIcon(20, '#383838')
@@ -465,30 +472,36 @@ fetch(mdnURL)
       },
       onEachFeature: function(feature, layer) {
         layer.on("click", function() {
-          // 取得屬性
           const props = feature.properties || {};
-          // title
           const title = props.title || "未命名";
-          // url
           const imageUrl = props.url || "";
-          // 設定 Modal 標題
+          // modal title
           document.getElementById("feature-title2").innerHTML = title;
-          // 設定 Modal 內容
+          // modal body
           document.querySelector("#point .modal-body").innerHTML = `
             <img 
               src="${imageUrl}"
               class="img-fluid rounded"
               style="max-height:70vh; object-fit:contain;"
+              loading="lazy"
             >
           `;
-          // 開啟 Modal
+          // show modal
           const modalEl = document.getElementById('point');
           const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
           modal.show();
         });
       }
-    }).addTo(map);
-  })
+    });
+    // 加到地圖
+    photoLayer.addTo(map);
+    // 加入圖層控制器
+    let photoLayerName = `
+      <span style="font-size:16px;">📷</span>
+      照片點位
+    `;
+    controlLayers.addOverlay(photoLayer, photoLayerName);
+  });
   </script>
 </body>
 </html>
