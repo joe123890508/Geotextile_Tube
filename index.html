@@ -272,7 +272,7 @@
   </div>
 
 <script>
-  var map = L.map('map', {center: [22.689,120.436], zoom: 15, zoomControl: true, renderer: L.canvas()});
+  var map = L.map('map', {center: [22.699, 120.453], zoom: 17, zoomControl: true, renderer: L.canvas()});
   // 控制圖層開關
   let controlLayers;
   controlLayers = L.control.layers(null, null, {
@@ -401,16 +401,15 @@ function processGeoJson(json, compareData, colorMap) {
     layersByCategory[category].addData(feature);
   });
 }
-
-// 載入丁壩圖層
-loadAllData();
+  loadAllData();
   L.control.fullscreen({
     position: 'topleft',
     forceSeparateButton: true,
     forcePseudoFullscreen: true,
     fullscreenElement: false
   }).addTo(map);
-   const thetaURL = "https://joe123890508.github.io/Geotextile_Tube/bar.geojson"
+  // 載入丁壩圖層
+  const thetaURL = "https://joe123890508.github.io/Geotextile_Tube/bar.geojson"
   fetch(thetaURL)
     .then(response => {
       if (!response.ok) throw new Error("無法載入資料");
@@ -498,10 +497,36 @@ fetch(photoURL)
     // 加入圖層控制器
     let photoLayerName = `
       <span style="font-size:16px;">📷</span>
-      照片點位
+      竣工確認照片
     `;
     controlLayers.addOverlay(photoLayer, photoLayerName);
   });
+
+  const hbarURL = "https://joe123890508.github.io/Geotextile_Tube/hbar.geojson"
+  fetch(hbarURL)
+  .then(response => {
+    if (!response.ok) throw new Error("無法載入資料");
+    return response.json();
+  })
+  .then(data => {
+    L.geoJSON(data, {
+      pointToLayer: function (feature, latlng) {
+        return L.marker(latlng, {
+          icon: L.divIcon({
+            className: 'custom-plus-icon', // 自定義 CSS 類別
+            html: '+',                     // 圖案內容
+            iconSize: [10, 10],            // 設定圖標大小
+            iconAnchor: [5, 5]             // 設定錨點，使其置中
+          })
+        });
+      },
+      onEachFeature: function (feature, layer) {
+        if (feature.properties && feature.properties.ID) {
+          layer.bindTooltip(feature.properties.ID, { sticky: true });
+        }
+      }
+    }).addTo(map);
+  })
   </script>
 </body>
 </html>
