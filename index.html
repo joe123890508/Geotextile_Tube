@@ -292,29 +292,35 @@
     collapsed: true
   }).addTo(map);
   // 停用地圖操作函式
+  // 停用地圖操作函式 (新增針對手機/平板等行動裝置的觸控縮放禁用)
   function bindModalMapControl(modalId) {
     const modalEl = document.getElementById(modalId);
-    // Modal 開啟時停用地圖操作
+    if (!modalEl) return;
     modalEl.addEventListener('shown.bs.modal', () => {
+      // 1. 禁用基礎操作與滑輪
       map.dragging.disable();
       map.scrollWheelZoom.disable();
       map.doubleClickZoom.disable();
       map.boxZoom.disable();
       map.keyboard.disable();
-      if (map.tap) {
-        map.tap.disable();
-      }
+      
+      // 2. 【關鍵】禁用手機行動裝置的觸控、雙指放大縮小與雙擊放大
+      if (map.touchZoom) map.touchZoom.disable();
+      if (map.doubleClickZoom) map.doubleClickZoom.disable();
+      if (map.tap) map.tap.disable();
     });
-    // Modal 關閉時恢復地圖操作
     modalEl.addEventListener('hidden.bs.modal', () => {
+      // 1. 恢復基礎操作與滑輪
       map.dragging.enable();
       map.scrollWheelZoom.enable();
       map.doubleClickZoom.enable();
       map.boxZoom.enable();
       map.keyboard.enable();
-      if (map.tap) {
-        map.tap.enable();
-      }
+      
+      // 2. 恢復手機行動裝置的觸控縮放
+      if (map.touchZoom) map.touchZoom.enable();
+      if (map.doubleClickZoom) map.doubleClickZoom.enable();
+      if (map.tap) map.tap.enable();
     });
   }
   bindModalMapControl('featureModal');
@@ -346,9 +352,9 @@
   try {
     // 同時抓取所有資料，縮短載入時間
     const [resLayer, resPoint, resColor] = await Promise.all([
-      fetch("https://joe123890508.github.io/Geotextile_Tube/layer.json"),
-      fetch("https://joe123890508.github.io/Geotextile_Tube/point.geojson"),
-      fetch("https://joe123890508.github.io/Geotextile_Tube/color.json")
+      fetch("./layer.json"),
+      fetch("./point.geojson"),
+      fetch("./color.json")
     ]);
     const compareData = await resLayer.json();
     const geojson = await resPoint.json();
@@ -422,14 +428,14 @@ function processGeoJson(json, compareData, colorMap) {
     fullscreenElement: false
   }).addTo(map);
   // 載入丁壩圖層
-  const thetaURL = "https://joe123890508.github.io/Geotextile_Tube/bar.geojson"
+  const thetaURL = "./bar.geojson"
   fetch(thetaURL)
     .then(response => {
       if (!response.ok) throw new Error("無法載入資料");
       return response.json();
     })
   .then(data => {
-L.geoJSON(data, {
+const barLayer = L.geoJSON(data, {
   style: function(feature) {
     return {
       fillColor: 'orange', // 填滿顏色
@@ -446,7 +452,13 @@ L.geoJSON(data, {
     }
   }
 }).addTo(map);
-  })
+// 放到最底層
+barLayer.eachLayer(layer => {
+  if (layer.setZIndexOffset) {
+    layer.setZIndexOffset(-1000);
+  }
+});
+})
 
 function createCameraIcon(size = 20, color = '#2d3748') {
   return L.divIcon({
@@ -475,7 +487,7 @@ function createCameraIcon(size = 20, color = '#2d3748') {
 // 宣告全域變數用以控制 Three.js
 let threeAnimId = null;
 
-const photoURL = "https://joe123890508.github.io/Geotextile_Tube/photo.geojson";
+const photoURL = "./photo.geojson";
 fetch(photoURL)
   .then(response => response.json())
   .then(data => {
@@ -517,7 +529,7 @@ fetch(photoURL)
     controlLayers.addOverlay(photoLayer, photoLayerName);
   });
 
-  const hbarURL = "https://joe123890508.github.io/Geotextile_Tube/hbar.geojson"
+  const hbarURL = "./hbar.geojson"
   fetch(hbarURL)
   .then(response => {
     if (!response.ok) throw new Error("無法載入資料");
