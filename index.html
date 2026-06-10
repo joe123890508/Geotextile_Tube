@@ -24,7 +24,6 @@
       display: flex;
       flex-direction: column;
     }
-    /* 地圖 RWD */
     #container {
       min-height: 250px;
       margin: 10px 0;
@@ -34,7 +33,6 @@
       height: 90vh;
       min-height: 400px;
     }
-    /* 圖片區塊 RWD */
     .image-wrapper {
       width: 100%;
       max-width: 100%;
@@ -50,7 +48,6 @@
     #preview-image.visible {
       display: block;
     }
-    /* 小螢幕優化 */
     @media (max-width: 576px) {
       select, input, textarea, button {
         width: 100% !important;
@@ -79,7 +76,7 @@
       display: none;
     }
     .basemap {
-      display: inline-block; /* todo: flexbox? */
+      display: inline-block;
       cursor: pointer;
     }
     .basemap.active img {
@@ -118,11 +115,6 @@
     #feature-info tr:hover {
       background-color: #e9f5ff;
     }
-    .spinner {
-      font-size: 20px;
-      color: #333;
-    }
-    /* 清單項目標籤 */
     .leaflet-control-layers label {
       display: flex;
       align-items: center;
@@ -132,23 +124,19 @@
       transition: background-color 0.3s ease;
       user-select: none;
     }
-    /* 滑鼠滑過項目改色 */
     .leaflet-control-layers label:hover {
       background-color: #f0f8ff;
     }
-    /* checkbox 和 radio 按鈕調整大小 */
     .leaflet-control-layers input[type="checkbox"],
     .leaflet-control-layers input[type="radio"] {
       margin-right: 10px;
       transform: scale(1.2);
       cursor: pointer;
     }
-    /* 圖層名稱字體顏色和大小 */
     .leaflet-control-layers label span {
       font-size: 14px;
       color: #333;
     }
-    /* 捲軸美化（當圖層很多時） */
     .leaflet-control-layers-list {
       max-height: 250px;
       overflow-y: auto;
@@ -163,10 +151,10 @@
     }
     .modal-body{
       display: flex;
-      justify-content: center; /* 水平置中 */
-      align-items: center;     /* 垂直置中 */
-      flex-direction: column;  /* 子元素垂直排列 */
-      text-align: center;      /* 子元素文字置中 */
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      text-align: center;
     }
     #theta-viewer {
       display: flex;
@@ -177,13 +165,11 @@
       max-width: 100%;
       height: 75vh !important;
     }
-
-    /* 照相機圖案 */
     .camera-marker-wrapper {
       background: transparent;
       border: none;
     }
-    .camera-marker { /* 主體 */
+    .camera-marker {
       --size: 40px;
       position: relative;
       width: var(--size);
@@ -193,17 +179,16 @@
       border: calc(var(--size) * 0.04) solid #1a202c;
       box-sizing: border-box;
     }
-    .camera-top { /* 上方凸起 */
+    .camera-top {
       position: absolute;
       top: calc(var(--size) * -0.16);
       left: calc(var(--size) * 0.16);
       width: calc(var(--size) * 0.36);
       height: calc(var(--size) * 0.2);
       background: #4a5568;
-      border-radius: calc(var(--size) * 0.08)
-                    calc(var(--size) * 0.08)
-                    0 0;}
-    .camera-lens { /* 鏡頭 */
+      border-radius: calc(var(--size) * 0.08) calc(var(--size) * 0.08) 0 0;
+    }
+    .camera-lens {
       position: absolute;
       top: 50%;
       left: 50%;
@@ -215,8 +200,7 @@
       border-radius: 50%;
       box-sizing: border-box;
     }
-    
-    .camera-lens::after { /* 鏡頭中心 */
+    .camera-lens::after {
       content: '';
       position: absolute;
       top: 50%;
@@ -227,7 +211,6 @@
       background: #63b3ed;
       border-radius: 50%;
     }
-    /* 閃光燈 */
     .camera-flash {
       position: absolute;
       top: calc(var(--size) * 0.12);
@@ -237,8 +220,6 @@
       background: #f6e05e;
       border-radius: 50%;
     }
-
-    /* 3D 渲染畫布容器樣式（獨立佔滿整個 Modal 高度） */
     #threejs-container {
       width: 100%;
       height: 70vh;
@@ -266,8 +247,8 @@
         </div>
       </div>
       <div class="modal fade" id="point" tabindex="-1" role="dialog">
-        <div class="modal-dialog" style="max-width: 85%;" role="dialog">
-          <div class="modal-content" style="max-width: 100%;">
+        <div class="modal-dialog style-dialog" style="max-width: 85%;">
+          <div class="modal-content">
             <div class="modal-header">
               <h4 class="modal-title text-primary" id="feature-title2"></h4>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -286,390 +267,338 @@
 
 <script>
   var map = L.map('map', {center: [22.699, 120.453], zoom: 17, zoomControl: true, renderer: L.canvas()});
-  // 控制圖層開關
-  let controlLayers;
-  controlLayers = L.control.layers(null, null, {
-    collapsed: true
-  }).addTo(map);
-  // 停用地圖操作函式
-  // 停用地圖操作函式 (新增針對手機/平板等行動裝置的觸控縮放禁用)
+  
+  let controlLayers = L.control.layers(null, null, { collapsed: true }).addTo(map);
+
   function bindModalMapControl(modalId) {
     const modalEl = document.getElementById(modalId);
     if (!modalEl) return;
     modalEl.addEventListener('shown.bs.modal', () => {
-      // 1. 禁用基礎操作與滑輪
       map.dragging.disable();
       map.scrollWheelZoom.disable();
       map.doubleClickZoom.disable();
       map.boxZoom.disable();
       map.keyboard.disable();
-      
-      // 2. 【關鍵】禁用手機行動裝置的觸控、雙指放大縮小與雙擊放大
       if (map.touchZoom) map.touchZoom.disable();
-      if (map.doubleClickZoom) map.doubleClickZoom.disable();
       if (map.tap) map.tap.disable();
     });
     modalEl.addEventListener('hidden.bs.modal', () => {
-      // 1. 恢復基礎操作與滑輪
       map.dragging.enable();
       map.scrollWheelZoom.enable();
       map.doubleClickZoom.enable();
       map.boxZoom.enable();
       map.keyboard.enable();
-      
-      // 2. 恢復手機行動裝置的觸控縮放
       if (map.touchZoom) map.touchZoom.enable();
-      if (map.doubleClickZoom) map.doubleClickZoom.enable();
       if (map.tap) map.tap.enable();
     });
   }
   bindModalMapControl('featureModal');
   bindModalMapControl('point');
+
   L.control.scale({position: 'bottomleft'}).addTo(map);
+
   var basemaps = [
-    L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', {
-    maxZoom: 20,
-    id: 'EMAP',
-    label: '通用電子地圖' }),
-    L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', {
-    maxZoom: 20,
-    id: 'PHOTO2',
-    label: '正射影像圖' }),
-    L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', {
-      maxZoom: 20,
-      id: 'LUIMAP',
-      label: '土地使用調查' })
+    L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', { maxZoom: 20, id: 'EMAP', label: '通用電子地圖' }),
+    L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', { maxZoom: 20, id: 'PHOTO2', label: '正射影像圖' }),
+    L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', { maxZoom: 20, id: 'LUIMAP', label: '土地使用調查' })
   ];
-  L.Control.Basemaps=L.Control.extend({_map:null,includes:L.Evented?L.Evented.prototype:L.Mixin.Event,options:{position:"bottomright",tileX:0,tileY:0,tileZ:0,layers:[]},basemap:null,onAdd:function(e){this._map=e;var t=L.DomUtil.create("div","basemaps leaflet-control closed");return L.DomEvent.disableClickPropagation(t),L.Browser.touch||L.DomEvent.disableScrollPropagation(t),this.options.basemaps.forEach(function(s,o){var a,i="basemap";if(0===o?(this.basemap=s,this._map.addLayer(s),i+=" active"):1===o&&(i+=" alt"),s.options.iconURL)a=s.options.iconURL;else{var l={x:this.options.tileX,y:this.options.tileY};if(a=L.Util.template(s._url,L.extend({s:s._getSubdomain(l),x:l.x,y:s.options.tms?s._globalTileRange.max.y-l.y:l.y,z:this.options.tileZ},s.options)),s instanceof L.TileLayer.WMS){s._map=e;var n=s.options.crs||e.options.crs,r=L.extend({},s.wmsParams),m=parseFloat(r.version);r[m>=1.3?"crs":"srs"]=n.code;var p=L.point(l);p.z=this.options.tileZ;var c=s._tileCoordsToBounds(p),d=n.project(c.getNorthWest()),h=n.project(c.getSouthEast()),v=(m>=1.3&&n===L.CRS.EPSG4326?[h.y,d.x,d.y,h.x]:[d.x,h.y,h.x,d.y]).join(",");a+=L.Util.getParamString(r,a,s.options.uppercase)+(s.options.uppercase?"&BBOX=":"&bbox=")+v}}var b=L.DomUtil.create("div",i,t),u=L.DomUtil.create("img",null,b);u.src=a,s.options&&s.options.label&&(u.title=s.options.label),L.DomEvent.on(b,"click",function(){if(this.options.basemaps.length>2&&L.Browser.mobile&&L.DomUtil.hasClass(t,"closed"))L.DomUtil.removeClass(t,"closed");else if(s!=this.basemap){e.removeLayer(this.basemap),e.addLayer(s),s.bringToBack(),e.fire("baselayerchange",s),this.basemap=s,L.DomUtil.removeClass(t.getElementsByClassName("basemap active")[0],"active"),L.DomUtil.addClass(b,"active");var a=(o+1)%this.options.basemaps.length;L.DomUtil.removeClass(t.getElementsByClassName("basemap alt")[0],"alt"),L.DomUtil.addClass(t.getElementsByClassName("basemap")[a],"alt"),L.DomUtil.addClass(t,"closed")}},this)},this),this.options.basemaps.length>2&&!L.Browser.mobile&&(L.DomEvent.on(t,"mouseenter",function(){L.DomUtil.removeClass(t,"closed")},this),L.DomEvent.on(t,"mouseleave",function(){L.DomUtil.addClass(t,"closed")},this)),this._container=t,this._container}}),L.control.basemaps=function(e){return new L.Control.Basemaps(e)};
-  map.addControl(L.control.basemaps({
-    basemaps: basemaps,
-    tileX: 854,
-    tileY: 444,
-    tileZ: 10
-  }));
 
-  async function loadAllData() {
-  try {
-    // 同時抓取所有資料，縮短載入時間
-    const [resLayer, resPoint, resColor] = await Promise.all([
-      fetch("./layer.json"),
-      fetch("./point.geojson"),
-      fetch("./color.json")
-    ]);
-    const compareData = await resLayer.json();
-    const geojson = await resPoint.json();
-    const colorMap = await resColor.json();
-    processGeoJson(geojson, compareData, colorMap);
-  } catch (error) {
-    console.error("Data loading error:", error);
-    alert("資料載入失敗，請確認網路連線！");
-  }
-}
+  // 底圖切換器外掛
+  L.Control.Basemaps = L.Control.extend({
+    options: {position: "bottomright", tileX: 0, tileY: 0, tileZ: 0, basemaps: []},
+    onAdd: function(map) {
+      var container = L.DomUtil.create("div", "basemaps leaflet-control closed");
+      L.DomEvent.disableClickPropagation(container);
+      if (!L.Browser.touch) L.DomEvent.disableScrollPropagation(container);
+      
+      this.options.basemaps.forEach((layer, idx) => {
+        var cls = "basemap";
+        if (idx === 0) { this.basemap = layer; map.addLayer(layer); cls += " active"; }
+        else if (idx === 1) { cls += " alt"; }
+        
+        var url = L.Util.template(layer._url, L.extend({s: layer._getSubdomain({x:this.options.tileX, y:this.options.tileY}), x: this.options.tileX, y: this.options.tileY, z: this.options.tileZ}, layer.options));
+        var box = L.DomUtil.create("div", cls, container);
+        var img = L.DomUtil.create("img", null, box);
+        img.src = url;
+        if (layer.options.label) img.title = layer.options.label;
 
-function processGeoJson(json, compareData, colorMap) {
-  // 建立圖層控制項
-  let layersByCategory = {};
-  // 1. 預處理屬性轉換 (只需跑一次)
-  json.features.forEach(feature => {
-    let rawLayer = feature.properties.layer;
-    feature.properties.layer = compareData[rawLayer] || `圖層 ${rawLayer}`;
+        L.DomEvent.on(box, "click", () => {
+          if (this.options.basemaps.length > 2 && L.Browser.mobile && L.DomUtil.hasClass(container, "closed")) {
+            L.DomUtil.removeClass(container, "closed");
+          } else if (layer !== this.basemap) {
+            map.removeLayer(this.basemap);
+            map.addLayer(layer);
+            layer.bringToBack();
+            this.basemap = layer;
+            L.DomUtil.removeClass(container.getElementsByClassName("basemap active")[0], "active");
+            L.DomUtil.addClass(box, "active");
+            var altIdx = (idx + 1) % this.options.basemaps.length;
+            L.DomUtil.removeClass(container.getElementsByClassName("basemap alt")[0], "alt");
+            L.DomUtil.addClass(container.getElementsByClassName("basemap")[altIdx], "alt");
+            L.DomUtil.addClass(container, "closed");
+          }
+        });
+      });
+      if (this.options.basemaps.length > 2 && !L.Browser.mobile) {
+        L.DomEvent.on(container, "mouseenter", () => L.DomUtil.removeClass(container, "closed"));
+        L.DomEvent.on(container, "mouseleave", () => L.DomUtil.addClass(container, "closed"));
+      }
+      return container;
+    }
   });
-  // 2. 依照分類建立 Leaflet 圖層
-  json.features.forEach(feature => {
-    let category = feature.properties.layer;
-    if (!layersByCategory[category]) {
-      let color = colorMap[category] || "black";
-      // 建立該類別的 GeoJSON 容器
-      layersByCategory[category] = L.geoJSON(null, {
-        pointToLayer: (f, latlng) => {
-          return L.circleMarker(latlng, {
-            radius: 7,
-            fillColor: color,
-            color: "#fff",
-            weight: 1.5,
-            opacity: 1,
-            fillOpacity: 0.8
-          });
-        },
+  L.control.basemaps = function(options) { return new L.Control.Basemaps(options); };
+  map.addControl(L.control.basemaps({ basemaps: basemaps, tileX: 854, tileY: 444, tileZ: 10 }));
+
+  // 載入主點位資料
+  async function loadAllData() {
+    try {
+      const [resLayer, resPoint, resColor] = await Promise.all([
+        fetch("./layer.json"), fetch("./point.geojson"), fetch("./color.json")
+      ]);
+      const compareData = await resLayer.json();
+      const geojson = await resPoint.json();
+      const colorMap = await resColor.json();
+      processGeoJson(geojson, compareData, colorMap);
+    } catch (error) {
+      console.error("Data loading error:", error);
+      alert("資料載入失敗，請確認網路連線或檔案路徑！");
+    }
+  }
+
+  function processGeoJson(json, compareData, colorMap) {
+    let layersByCategory = {};
+    json.features.forEach(feature => {
+      let rawLayer = feature.properties.layer;
+      feature.properties.layer = compareData[rawLayer] || `圖層 ${rawLayer}`;
+    });
+
+    json.features.forEach(feature => {
+      let category = feature.properties.layer;
+      if (!layersByCategory[category]) {
+        let color = colorMap[category] || "black";
+        layersByCategory[category] = L.geoJSON(null, {
+          pointToLayer: (f, latlng) => {
+            const maker = L.circleMarker(latlng, {
+              radius: 7, fillColor: color, color: "#fff", weight: 1.5, opacity: 1, fillOpacity: 0.8
+            })
+            maker.options.tolerance = 15;
+            return maker;
+          },
+          onEachFeature: (f, layer) => {
+            layer.on("click", () => {
+              let table = '<table class="table table-sm table-striped mb-0">';
+              for (let key in f.properties) {
+                table += `<tr><th style="width:40%">${key}</th><td>${f.properties[key]}</td></tr>`;
+              }
+              table += '</table>';
+              document.getElementById("feature-info").innerHTML = table;
+              document.getElementById("feature-title1").innerHTML = `點號：${f.properties.P || '未命名'}`;
+              bootstrap.Modal.getOrCreateInstance(document.getElementById('featureModal')).show();
+            });
+          }
+        });
+        let nameWithIcon = `<span style="display:inline-block; width:12px; height:12px; background:${color}; margin-right:6px; border-radius:50%; border: 1px solid #666; vertical-align: middle;"></span>${category}`;
+        controlLayers.addOverlay(layersByCategory[category], nameWithIcon);
+        map.addLayer(layersByCategory[category]);
+      }
+      layersByCategory[category].addData(feature);
+    });
+  }
+  loadAllData();
+
+  L.control.fullscreen({ position: 'topleft', forceSeparateButton: true, forcePseudoFullscreen: true }).addTo(map);
+  // 載入丁壩圖層
+  fetch("./bar.geojson")
+  .then(res => { if (!res.ok) throw new Error(); return res.json(); })
+    .then(data => {
+      const barLayer = L.geoJSON(data, {
+        style: () => ({ fillColor: 'orange', weight: 2, opacity: 1, color: 'black', fillOpacity: 0.6 }),
+        onEachFeature: (f, layer) => {
+          if (f.properties && f.properties.名稱) layer.bindTooltip(f.properties.名稱, { sticky: true });
+        }
+      }).addTo(map);
+      barLayer.bringToBack(); // 推到最下層
+    
+    }).catch(() => console.warn("丁壩圖層 (bar.geojson) 載入失敗"));
+
+  function createCameraIcon(size = 20, color = '#2d3748') {
+    return L.divIcon({
+      className: 'camera-marker-wrapper',
+      html: `<div class="camera-marker" style="--size:${size}px; background:${color};"><div class="camera-top"></div><div class="camera-lens"></div><div class="camera-flash"></div></div>`,
+      iconSize: [size, size * 0.64],
+      iconAnchor: [size / 2, (size * 0.64) / 2]
+    });
+  }
+
+  // 載入照片圖層
+  fetch("./photo.geojson")
+    .then(res => res.json())
+    .then(data => {
+      const photoLayer = L.geoJSON(data, {
+        pointToLayer: (f, latlng) => L.marker(latlng, { icon: createCameraIcon(20, '#383838') }),
         onEachFeature: (f, layer) => {
           layer.on("click", () => {
-            // 彈窗內的表格資訊
-            let table = '<table class="table table-sm table-striped mb-0">';
-            for (let key in f.properties) {
-              table += `<tr><th style="width:40%">${key}</th><td>${f.properties[key]}</td></tr>`;
-            }
-            table += '</table>';
-            document.getElementById("feature-info").innerHTML = table;
-            document.getElementById("feature-title1").innerHTML = `點號：${f.properties.P || '未命名'}`;
-            // 觸發 Bootstrap Modal
-            const modalEl = document.getElementById('featureModal');
-            const featureModal = bootstrap.Modal.getOrCreateInstance(modalEl);
-            featureModal.show();
+            const props = f.properties || {};
+            document.getElementById("feature-title2").innerHTML = props.title || "未命名";
+            document.querySelector("#point .modal-body").innerHTML = `
+              <img src="${props.url || ''}" class="img-fluid rounded" style="max-height:70vh; object-fit:contain;" loading="lazy">
+            `;
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('point')).show();
           });
         }
-      });
-      // 組合圖層清單顯示的 HTML (色塊圓點 + 名稱)
-      let nameWithIcon = `
-        <span style="display:inline-block; width:12px; height:12px; background:${color}; 
-        margin-right:6px; border-radius:50%; border: 1px solid #666; vertical-align: middle;"></span>
-        ${category}`;
-      controlLayers.addOverlay(layersByCategory[category], nameWithIcon);
-      map.addLayer(layersByCategory[category]); // 預設開啟顯示
-    }
-    // 將 Feature 加入對應的圖層組
-    layersByCategory[category].addData(feature);
-  });
-}
-  loadAllData();
-  L.control.fullscreen({
-    position: 'topleft',
-    forceSeparateButton: true,
-    forcePseudoFullscreen: true,
-    fullscreenElement: false
-  }).addTo(map);
-  // 載入丁壩圖層
-  const thetaURL = "./bar.geojson"
-  fetch(thetaURL)
-    .then(response => {
-      if (!response.ok) throw new Error("無法載入資料");
-      return response.json();
-    })
-  .then(data => {
-const barLayer = L.geoJSON(data, {
-  style: function(feature) {
-    return {
-      fillColor: 'orange', // 填滿顏色
-      weight: 2,            // 邊框寬度
-      opacity: 1,           // 邊框透明度
-      color: 'black',       // 邊框顏色
-      fillOpacity: 0.6      // 填滿透明度
-    };
-  },
-  onEachFeature: function (feature, layer) {
-    // 綁定一個簡單的滑鼠標籤 (Tooltip)
-    if (feature.properties && feature.properties.名稱) {
-      layer.bindTooltip(feature.properties.名稱, { sticky: true });
-    }
-  }
-}).addTo(map);
-// 放到最底層
-barLayer.eachLayer(layer => {
-  if (layer.setZIndexOffset) {
-    layer.setZIndexOffset(-1000);
-  }
-});
-})
+      }).addTo(map);
+      controlLayers.addOverlay(photoLayer, `<span style="font-size:16px;">📷</span> 竣工確認照片`);
+    }).catch(() => console.warn("照片圖層 (photo.geojson) 載入失敗"));
 
-function createCameraIcon(size = 20, color = '#2d3748') {
-  return L.divIcon({
-    className: 'camera-marker-wrapper',
-    html: `
-      <div
-        class="camera-marker"
-        style="
-          --size:${size}px;
-          background:${color};
-        "
-      >
-        <div class="camera-top"></div>
-        <div class="camera-lens"></div>
-        <div class="camera-flash"></div>
-      </div>
-    `,
-    iconSize: [size, size * 0.64],
-    iconAnchor: [
-      size / 2,
-      (size * 0.64) / 2
-    ]
-  });
-}
-
-// 宣告全域變數用以控制 Three.js
-let threeAnimId = null;
-
-const photoURL = "./photo.geojson";
-fetch(photoURL)
-  .then(response => response.json())
-  .then(data => {
-    // 建立 GeoJSON 圖層
-    const photoLayer = L.geoJSON(data, {
-      pointToLayer: function(feature, latlng) {
-        return L.marker(latlng, {
-          icon: createCameraIcon(20, '#383838')
-        });
-      },
-      onEachFeature: function(feature, layer) {
-        layer.on("click", function() {
-          const props = feature.properties || {};
-          const title = props.title || "未命名";
-          const imageUrl = props.url || "";
-          // 點擊相機：完全維持你原本網頁的設定（唯獨把 3D 從這裡移除，純秀照片）
-          document.getElementById("feature-title2").innerHTML = title;
-          document.querySelector("#point .modal-body").innerHTML = `
-            <img 
-              src="${imageUrl}"
-              class="img-fluid rounded"
-              style="max-height:70vh; object-fit:contain;"
-              loading="lazy"
-            >
-          `;
-          const modalEl = document.getElementById('point');
-          const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-          modal.show();
-        });
-      }
-    });
-    // 加到地圖
-    photoLayer.addTo(map);
-    // 加入圖層控制器
-    let photoLayerName = `
-      <span style="font-size:16px;">📷</span>
-      竣工確認照片
-    `;
-    controlLayers.addOverlay(photoLayer, photoLayerName);
-  });
-
-  const hbarURL = "./hbar.geojson"
-  fetch(hbarURL)
-  .then(response => {
-    if (!response.ok) throw new Error("無法載入資料");
-    return response.json();
-  })
-  .then(data => {
-    L.geoJSON(data, {
-      pointToLayer: function (feature, latlng) {
-        return L.marker(latlng, {
-          icon: L.divIcon({
-            className: 'custom-plus-icon', // 自定義 CSS 類別
-            html: '+',                     // 圖案內容
-            iconSize: [10, 10],            // 設定圖標大小
-            iconAnchor: [5, 5]             // 設定錨點，使其置中
-          })
-        });
-      },
-      onEachFeature: function (feature, layer) {
-        if (feature.properties && feature.properties.ID) {
-          layer.bindTooltip(feature.properties.ID, { sticky: true });
+  // 載入 hbar 圖層
+  fetch("./hbar.geojson")
+    .then(res => res.json())
+    .then(data => {
+      L.geoJSON(data, {
+        pointToLayer: (f, latlng) => L.marker(latlng, {
+          icon: L.divIcon({ className: 'custom-plus-icon', html: '+', iconSize: [10, 10], iconAnchor: [5, 5] })
+        }),
+        onEachFeature: (f, layer) => {
+          if (f.properties && f.properties.ID) layer.bindTooltip(f.properties.ID, { sticky: true });
         }
-      }
-    }).addTo(map);
-  })
+      }).addTo(map);
+    }).catch(() => console.warn("hbar圖層載入失敗"));
 
-  // 引入 3D 地形專用的面圖層（Polygon Layer）
-  const terrainBoundsURL = "./wa.geojson"; 
-  fetch(terrainBoundsURL)
-    .then(response => response.json())
+  // --- Three.js 核心控制與記憶體回收機制 ---
+  let threeAnimId = null;
+  let activeRenderer = null;
+  let activeScene = null;
+
+  function onWindowResize() {
+    const container = document.getElementById("threejs-container");
+    if (!container || !activeRenderer) return;
+    const camera = activeScene?.userData.camera;
+    if (camera) {
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+    }
+    activeRenderer.setSize(container.clientWidth, container.clientHeight);
+  }
+
+  // 載入 3D 地形範圍（面圖層）
+  fetch("./wa.geojson")
+    .then(res => res.json())
     .then(data => {
       const terrainPolygonLayer = L.geoJSON(data, {
-        style: function(feature) {
-          return {
-            fillColor: '#4a90e2', // 藍色面圖層代表 3D 地形範圍
-            weight: 2,
-            opacity: 0.8,
-            color: '#2b6cb0',
-            fillOpacity: 0.3
-          };
-        },
-        onEachFeature: function (feature, layer) {
-          // 綁定滑鼠標籤提示
+        style: () => ({ fillColor: '#4a90e2', weight: 2, opacity: 0.8, color: '#2b6cb0', fillOpacity: 0.3 }),
+        onEachFeature: (f, layer) => {
           layer.bindTooltip("點擊查看該區 3D 地形圖", { sticky: true });
-          // 點擊 Polygon 時觸發
-          layer.on("click", function() {
-            const props = feature.properties || {};
-            const title = props.名稱 || "3D 測量地形圖";
-            // 1. 設定標題
-            document.getElementById("feature-title2").innerHTML = `${title}`;
-            // 2. 乾淨清空 Body，只塞入一個滿版的 3D 渲染容器 `#threejs-container`
-            document.querySelector("#point .modal-body").innerHTML = `
-              <div id="threejs-container"></div>
-            `;
-            // 3. 呼叫原本的 `#point` Modal 彈出視窗
-            const modalEl = document.getElementById('point');
-            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-            modal.show();
-            // 4. 延遲啟動 WebGL，以取得精確的畫布長寬
+          layer.on("click", () => {
+            const props = f.properties || {};
+            document.getElementById("feature-title2").innerHTML = props.名稱 || "3D 測量地形圖";
+            document.querySelector("#point .modal-body").innerHTML = `<div id="threejs-container"></div>`;
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('point')).show();
             setTimeout(initThreeJSTerrain, 250);
           });
         }
-      });
-      // 將 3D 地形圖層加入地圖，並加入圖層開關中
-      terrainPolygonLayer.addTo(map);
-      let terrainLayerName = `
-        <span style="font-size:16px;">📐</span>
-        取土區
-      `;
-      controlLayers.addOverlay(terrainPolygonLayer, terrainLayerName);
-    });
-  // 3D 地形網格渲染主程式
+      }).addTo(map);
+      controlLayers.addOverlay(terrainPolygonLayer, `<span style="font-size:16px;">📐</span> 取土區`);
+    }).catch(() => console.warn("地形範圍圖層 (wa.geojson) 載入失敗"));
+
   function initThreeJSTerrain() {
     const container = document.getElementById("threejs-container");
     if (!container) return;
+
     const width = container.clientWidth;
     const height = container.clientHeight;
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x222222);
+    
+    activeScene = new THREE.Scene();
+    activeScene.background = new THREE.Color(0x222222);
+    
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 2000);
     camera.position.set(0, 100, 150);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(width, height);
-    container.appendChild(renderer.domElement);
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.maxPolarAngle = Math.PI / 2.1; // 限制視角不沉入地底
+    activeScene.userData.camera = camera; // 將相機暫存在 scene 中方便 resize 存取
+
+    activeRenderer = new THREE.WebGLRenderer({ antialias: true });
+    activeRenderer.setSize(width, height);
+    container.appendChild(activeRenderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, activeRenderer.domElement);
+    controls.maxPolarAngle = Math.PI / 2.1;
     controls.minDistance = 5;
     controls.maxDistance = 1000;
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
+
+    activeScene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
     dirLight.position.set(100, 500, 100);
-    scene.add(dirLight);
-    // 載入 QGIS 生成的 3D 模型 (.glb)
+    activeScene.add(dirLight);
+
     const loader = new THREE.GLTFLoader();
     loader.load('./DEM.glb', function (gltf) {
       const terrain = gltf.scene;
-      scene.add(terrain);
-      // 自動定位包圍盒，確保視角完美
+      activeScene.add(terrain);
+      
       const box = new THREE.Box3().setFromObject(terrain);
       const center = box.getCenter(new THREE.Vector3());
       const size = box.getSize(new THREE.Vector3());
       controls.target.copy(center);
-      camera.position.set(
-        center.x,
-        center.y + (size.y * 2) + 60,
-        center.z + size.z * 1.5
-      );
+      camera.position.set(center.x, center.y + (size.y * 2) + 60, center.z + size.z * 1.5);
       controls.update();
     }, undefined, function (error) {
-      console.error("3D 模型加載失敗:", error);
-      // 備份方塊結構
-      const geo = new THREE.BoxGeometry(30, 10, 30);
-      const mat = new THREE.MeshNormalMaterial();
-      const mesh = new THREE.Mesh(geo, mat);
-      scene.add(mesh);
-      controls.target.set(0, 0, 0);
+      console.error("3D 模型加載失敗，啟動備份方塊:", error);
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(30, 10, 30), new THREE.MeshNormalMaterial());
+      activeScene.add(mesh);
       camera.position.set(0, 40, 60);
       controls.update();
     });
+
     function animate() {
       threeAnimId = requestAnimationFrame(animate);
       controls.update();
-      renderer.render(scene, camera);
+      if (activeRenderer && activeScene && camera) {
+        activeRenderer.render(activeScene, camera);
+      }
     }
     animate();
+
     window.addEventListener('resize', onWindowResize, false);
-    function onWindowResize() {
-      if (!container.clientWidth) return;
-      camera.aspect = container.clientWidth / container.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(container.clientWidth, container.clientHeight);
-    }
   }
-  // 監聽 Modal 關閉，徹底摧毀動畫釋放記憶體
+
+  // 監聽 Modal 關閉：徹底銷毀 Three.js 實例與釋放記憶體
   document.getElementById('point').addEventListener('hidden.bs.modal', function () {
+    window.removeEventListener('resize', onWindowResize, false);
+    
     if (threeAnimId) {
       cancelAnimationFrame(threeAnimId);
       threeAnimId = null;
     }
+
+    if (activeRenderer) {
+      activeRenderer.dispose();
+      const container = document.getElementById("threejs-container");
+      if (container && activeRenderer.domElement) {
+        container.removeChild(activeRenderer.domElement);
+      }
+      activeRenderer = null;
+    }
+
+    if (activeScene) {
+      activeScene.traverse((object) => {
+        if (!object.isMesh) return;
+        object.geometry.dispose();
+        if (object.material.isMaterial) {
+          cleanMaterial(object.material);
+        } else if (Array.isArray(object.material)) {
+          object.material.forEach(cleanMaterial);
+        }
+      });
+      activeScene = null;
+    }
   });
+
+  function cleanMaterial(material) {
+    material.dispose();
+    for (const key of Object.keys(material)) {
+      if (material[key] && typeof material[key].dispose === 'function') {
+        material[key].dispose();
+      }
+    }
+  }
 </script>
 </body>
 </html>
