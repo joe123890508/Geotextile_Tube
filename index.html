@@ -201,8 +201,8 @@
       height: calc(var(--size) * 0.2);
       background: #4a5568;
       border-radius: calc(var(--size) * 0.08)
-                     calc(var(--size) * 0.08)
-                     0 0;}
+                    calc(var(--size) * 0.08)
+                    0 0;}
     .camera-lens { /* 鏡頭 */
       position: absolute;
       top: 50%;
@@ -237,6 +237,15 @@
       background: #f6e05e;
       border-radius: 50%;
     }
+
+    /* 3D 渲染畫布容器樣式（獨立佔滿整個 Modal 高度） */
+    #threejs-container {
+      width: 100%;
+      height: 70vh;
+      background: #222;
+      border-radius: 6px;
+      position: relative;
+    }
   </style>
 </head>
 
@@ -270,6 +279,10 @@
       </div>
     </div>
   </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
   var map = L.map('map', {center: [22.699, 120.453], zoom: 17, zoomControl: true, renderer: L.canvas()});
@@ -458,6 +471,10 @@ function createCameraIcon(size = 20, color = '#2d3748') {
     ]
   });
 }
+
+// 宣告全域變數用以控制 Three.js
+let threeAnimId = null;
+
 const photoURL = "https://joe123890508.github.io/Geotextile_Tube/photo.geojson";
 fetch(photoURL)
   .then(response => response.json())
@@ -474,9 +491,8 @@ fetch(photoURL)
           const props = feature.properties || {};
           const title = props.title || "未命名";
           const imageUrl = props.url || "";
-          // modal title
+          // 點擊相機：完全維持你原本網頁的設定（唯獨把 3D 從這裡移除，純秀照片）
           document.getElementById("feature-title2").innerHTML = title;
-          // modal body
           document.querySelector("#point .modal-body").innerHTML = `
             <img 
               src="${imageUrl}"
@@ -485,7 +501,6 @@ fetch(photoURL)
               loading="lazy"
             >
           `;
-          // show modal
           const modalEl = document.getElementById('point');
           const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
           modal.show();
@@ -527,6 +542,122 @@ fetch(photoURL)
       }
     }).addTo(map);
   })
-  </script>
+
+  // 引入 3D 地形專用的面圖層（Polygon Layer）
+  const terrainBoundsURL = "./wa.geojson"; 
+  fetch(terrainBoundsURL)
+    .then(response => response.json())
+    .then(data => {
+      const terrainPolygonLayer = L.geoJSON(data, {
+        style: function(feature) {
+          return {
+            fillColor: '#4a90e2', // 藍色面圖層代表 3D 地形範圍
+            weight: 2,
+            opacity: 0.8,
+            color: '#2b6cb0',
+            fillOpacity: 0.3
+          };
+        },
+        onEachFeature: function (feature, layer) {
+          // 綁定滑鼠標籤提示
+          layer.bindTooltip("點擊查看該區 3D 地形圖", { sticky: true });
+          // 點擊 Polygon 時觸發
+          layer.on("click", function() {
+            const props = feature.properties || {};
+            const title = props.名稱 || "3D 測量地形圖";
+            // 1. 設定標題
+            document.getElementById("feature-title2").innerHTML = `${title}`;
+            // 2. 乾淨清空 Body，只塞入一個滿版的 3D 渲染容器 `#threejs-container`
+            document.querySelector("#point .modal-body").innerHTML = `
+              <div id="threejs-container"></div>
+            `;
+            // 3. 呼叫原本的 `#point` Modal 彈出視窗
+            const modalEl = document.getElementById('point');
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+            // 4. 延遲啟動 WebGL，以取得精確的畫布長寬
+            setTimeout(initThreeJSTerrain, 250);
+          });
+        }
+      });
+      // 將 3D 地形圖層加入地圖，並加入圖層開關中
+      terrainPolygonLayer.addTo(map);
+      let terrainLayerName = `
+        <span style="font-size:16px;">📐</span>
+        取土區
+      `;
+      controlLayers.addOverlay(terrainPolygonLayer, terrainLayerName);
+    });
+  // 3D 地形網格渲染主程式
+  function initThreeJSTerrain() {
+    const container = document.getElementById("threejs-container");
+    if (!container) return;
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x222222);
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 2000);
+    camera.position.set(0, 100, 150);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(width, height);
+    container.appendChild(renderer.domElement);
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.maxPolarAngle = Math.PI / 2.1; // 限制視角不沉入地底
+    controls.minDistance = 5;
+    controls.maxDistance = 1000;
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(100, 500, 100);
+    scene.add(dirLight);
+    // 載入 QGIS 生成的 3D 模型 (.glb)
+    const loader = new THREE.GLTFLoader();
+    loader.load('./DEM.glb', function (gltf) {
+      const terrain = gltf.scene;
+      scene.add(terrain);
+      // 自動定位包圍盒，確保視角完美
+      const box = new THREE.Box3().setFromObject(terrain);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      controls.target.copy(center);
+      camera.position.set(
+        center.x,
+        center.y + (size.y * 2) + 60,
+        center.z + size.z * 1.5
+      );
+      controls.update();
+    }, undefined, function (error) {
+      console.error("3D 模型加載失敗:", error);
+      // 備份方塊結構
+      const geo = new THREE.BoxGeometry(30, 10, 30);
+      const mat = new THREE.MeshNormalMaterial();
+      const mesh = new THREE.Mesh(geo, mat);
+      scene.add(mesh);
+      controls.target.set(0, 0, 0);
+      camera.position.set(0, 40, 60);
+      controls.update();
+    });
+    function animate() {
+      threeAnimId = requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+    window.addEventListener('resize', onWindowResize, false);
+    function onWindowResize() {
+      if (!container.clientWidth) return;
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    }
+  }
+  // 監聽 Modal 關閉，徹底摧毀動畫釋放記憶體
+  document.getElementById('point').addEventListener('hidden.bs.modal', function () {
+    if (threeAnimId) {
+      cancelAnimationFrame(threeAnimId);
+      threeAnimId = null;
+    }
+  });
+</script>
 </body>
 </html>
