@@ -281,7 +281,8 @@
         let allData = this.cache.get();
         if (!allData) {
           try {
-            const response = await fetch('/water_level/config');
+            // 通知 Parent 頁面：我想取得水位設定資料
+            window.parent.postMessage({ type: 'GET_WATER_CONFIG' }, '*');
             const resData = await response.json();
             if (resData.status === 'success') { allData = resData.data || {};
                                                 this.cache.set(allData); }
