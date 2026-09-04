@@ -259,12 +259,14 @@
     // 呼叫後端 API 抽象函式
     const pushListServiceAbstract = {
       cache: new CacheManager('cache_all_push_list', 'cache_all_push_list_time'),
-      _getCsrfToken() { return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''; },
+      _getCsrfToken() { return document.querySelector('meta[name="csrf-token"]')?.content 
+                               || window.parent.document.querySelector('meta[name="csrf-token"]')?.content; },
       clearAllCache() { this.cache.clear(); }, // 清除快取公開介面
       async sendRequest(formData) {
         try {
           const csrfToken = this._getCsrfToken();
-          const response = await fetch('/water_level/config', { method: 'POST', body: formData, headers: { 'X-CSRFToken': csrfToken } });
+          const data = Object.fromEntries(formData.entries()); // 將 FormData 轉為一般 JSON 物件
+          response = window.parent.postMessage({ type: 'SUBMIT_WATER_CONFIG', payload: data}, '*'); // 透過 postMessage 傳送給 Parent 頁面
           const resData = await response.json();
           if (resData.status === 'success') {
             this.cache.clear();
