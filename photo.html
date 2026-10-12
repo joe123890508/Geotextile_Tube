@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>簡易圖資展示系統</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <!-- Leaflet Fullscreen Plugin -->
+  <link rel="stylesheet" href="https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/leaflet.fullscreen.css"/>
+  <script src="https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/Leaflet.fullscreen.min.js"></script>
+  <!-- Leaflet MarkerCluster Plugin -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+  <!-- JSZip, EXIF.js, PapaParse (CSV) & Proj4js (座標轉換) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+  <!-- Leaflet.Draw CSS & JS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <style>
+    .modal-backdrop.show {
+      background-color: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      opacity: 1; 
+    }
+    .custom-modal-content {
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 16px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 173, 181, 0.2);
+    }
+    .modal.fade .modal-dialog {
+      transform: scale(0.85);
+      opacity: 0;
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s;
+    }
+    .modal.show .modal-dialog {
+      transform: scale(1);
+      opacity: 1;
+    }
+    html, body {
+      height: 100%;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    #container-fluid {
+      display: flex;
+      flex-direction: row;
+      flex: 1;
+      height: 98%;
+      min-height: 350px;
+      width: 98%;
+      justify-content: center;
+      margin: 0 auto;
+    }
+    #map {
+      height: 99%;
+      width: 48%;
+      position: relative;
+    }
+    #search {
+      height: 100%;
+      width: 48%;
+      padding-left: 15px;
+      padding-right: 15px;
+      display: flex;
+      flex-direction: column;
+    }
+    #search_area {
+      position: sticky;
+      top: 0;
+      background: #fff;
+      z-index: 10;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    #search_result {
+      flex: 1;
+      overflow-y: auto;
+      padding-top: 15px;
+    }
+    #search_result th, #search_result td {
+      text-align: center;
+      vertical-align: middle;
+    }
+    .upload-btn {
+      display: block;
+      width: 100%;
+      text-align: center;
+      padding: 10px 16px;
+      background-color: #3182ce;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 15px;
+      transition: background-color 0.2s;
+    }
+    .upload-btn:hover { background-color: #2b6cb0; }
+    .upload-btn-green { background-color: #2b8a3e; }
+    .upload-btn-green:hover { background-color: #216a2f; }
+    .file-input { display: none; }
+    .status-text {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #4a5568;
+      text-align: center;
+      word-break: break-all;
+    }
+    .progress-container {
+      width: 100%;
+      background-color: #e2e8f0;
+      border-radius: 4px;
+      overflow: hidden;
+      height: 10px;
+      margin-top: 10px;
+      display: none;
+    }
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      background-color: #3182ce;
+      transition: width 0.1s ease-in-out;
+    }
+    .nav-tabs .nav-link { font-weight: 600; color: #495057; }
+    .nav-tabs .nav-link.active { color: #0d6efd; }
+    @media (max-width: 768px), (max-aspect-ratio: 1/1) {
+      #container-fluid { flex-direction: column; justify-content: center; align-items: center }
+      #search { height: 60%; width: 100%; }
+      #map { height: 40%; width: 100%; margin-top: 0.15rem !important;}
+      #search_area h1 { margin-bottom: 0.25rem !important; margin-top: 0 !important; }
+      #container-fluid { margin-top: 0.25rem !important; }
+    }
+    .basemaps { padding: 4px; }
+    .basemaps.closed .basemap { display: none; }
+    .basemaps.closed .basemap.alt { display: inline-block; }
+    .basemaps.closed .basemap.alt h4 { display: none; }
+    .basemap { display: inline-block; cursor: pointer; }
+    .basemap.active img { border-color: orange; box-shadow: 2px 2px 4px #000; }
+    .basemap img {
+      width: 70px;
+      border: 2px solid #FFF;
+      margin: 0 2px;
+      border-radius: 50%;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+    }
+    .leaflet-control-layers label {
+      display: flex;
+      align-items: center;
+      padding: 4px 8px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .leaflet-control-layers label:hover { background-color: #f0f8ff; }
+    .camera-marker-wrapper { background: transparent; border: none; }
+    .camera-marker {
+      --size: 20px;
+      position: relative;
+      width: var(--size);
+      height: calc(var(--size) * 0.64);
+      background: #2d3748;
+      border-radius: calc(var(--size) * 0.12);
+      border: calc(var(--size) * 0.04) solid #1a202c;
+      box-sizing: border-box;
+      margin-top: calc(var(--size) * -0.32);
+      margin-left: calc(var(--size) * -0.5);
+    }
+    .camera-top {
+      position: absolute;
+      top: calc(var(--size) * -0.16);
+      left: calc(var(--size) * 0.16);
+      width: calc(var(--size) * 0.36);
+      height: calc(var(--size) * 0.2);
+      background: #4a5568;
+      border-radius: calc(var(--size) * 0.08) calc(var(--size) * 0.08) 0 0;
+    }
+    .camera-lens {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: calc(var(--size) * 0.36);
+      height: calc(var(--size) * 0.36);
+      transform: translate(-50%, -50%);
+      background: #1a202c;
+      border: calc(var(--size) * 0.06) solid #a0aec0;
+      border-radius: 50%;
+      box-sizing: border-box;
+    }
+    .camera-lens::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: calc(var(--size) * 0.12);
+      height: calc(var(--size) * 0.12);
+      transform: translate(-50%, -50%);
+      background: #63b3ed;
+      border-radius: 50%;
+    }
+    .camera-flash {
+      position: absolute;
+      top: calc(var(--size) * 0.12);
+      right: calc(var(--size) * 0.12);
+      width: calc(var(--size) * 0.12);
+      height: calc(var(--size) * 0.12);
+      background: #f6e05e;
+      border-radius: 50%;
+    }
+    .popup-img {
+      width: 100% !important;
+      height: auto !important;
+      max-height: 350px !important;
+      object-fit: contain !important;
+      display: block;
+      margin-top: 8px;
+      border-radius: 4px;
+    }
+    .folder-badge {
+      background-color: #007bff;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .prop-table {
+      width: 100%;
+      margin-top: 10px;
+      font-size: 0.9rem;
+    }
+    .prop-table th {
+      background-color: #f1f5f9;
+      width: 35%;
+      text-align: left;
+      padding: 6px 10px;
+    }
+    .prop-table td {
+      padding: 6px 10px;
+      word-break: break-all;
+    }
+    .option-group {
+      background: #f8f9fa;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+      margin-bottom: 12px;
+    }
+    .option-group label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #2d3748;
+    }
+    .leaflet-control-export-btn { font-size: 16px; }
+  </style>
+</head>
+<body>
+  <div id="player" style="display:none;"></div>
+  <div class="modal fade" id="welcomeModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="welcomeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 440px;">
+      <div class="modal-content border-0 custom-modal-content">
+        <div class="modal-body p-3 p-sm-5 text-center">
+          <h2 class="fw-bolder mb-3 fs-2" id="welcomeModalLabel">提醒說明</h2>
+          <div class="text-start text-dark mb-4 fs-6 lh-base">
+            <p class="mb-2">本網站內容僅供參考，不能作為法律證明文件。</p>
+            <p class="mb-2">本網站提供繪製、瀏覽、下載之地理資料，僅可作為示意，不具法律效力，不涉及現實世界情況之認定。</p>
+          </div>
+          <button type="button" id="btn-start" class="btn  btn-outline-primary w-100 mt-2 py-2 rounded-3" data-bs-dismiss="modal">
+            同意以上內容並進入網頁
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="container-fluid" class="mt-3">
+    <div id="search">
+      <div id="search_area">
+        <h1 class="text-center mt-1 mb-4 fw-bold">簡易圖資展示系統</h1>
+        <ul class="nav nav-tabs mb-3 nav-justified" id="uploadTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="data-tab" data-bs-toggle="tab" data-bs-target="#data-panel" type="button" role="tab">🗺️ 空間資料</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="photo-tab" data-bs-toggle="tab" data-bs-target="#photo-panel" type="button" role="tab">📷 照片資料</button>
+          </li>
+        </ul>
+        <div class="tab-content" id="uploadTabContent">
+          <!-- 頁籤 1: GeoJSON / CSV -->
+          <div class="tab-pane fade show active" id="data-panel" role="tabpanel">
+            <div class="option-group">
+              <label for="crs-select" class="form-label mb-1">選擇資料座標系統 (CRS)：</label>
+              <select id="crs-select" class="form-select form-select-sm">
+                <option value="4326">EPSG:4326 (WGS84 經緯度)</option>
+                <option value="3826">EPSG:3826 (TWD97 121分帶)</option>
+              </select>
+            </div>
+            <label for="data-file-input" class="upload-btn upload-btn-green">上傳 GeoJSON / CSV 檔案</label>
+            <input type="file" id="data-file-input" class="file-input" accept=".geojson, .json, .csv">
+            <div class="status-text" id="data-status-text">CSV 支援為點位展繪；GeoJSON 支援點、線、面展繪</div>
+          </div>
+          <!-- 頁籤 2: 照片 ZIP -->
+          <div class="tab-pane fade" id="photo-panel" role="tabpanel">
+            <label for="photo-file-input" class="upload-btn">上傳照片 ZIP 檔案</label>
+            <input type="file" id="photo-file-input" class="file-input" accept=".zip">
+            <div class="progress-container" id="photo-progress-container">
+              <div class="progress-bar" id="photo-progress-bar"></div>
+            </div>
+            <div class="status-text" id="photo-status-text">請選擇包含 GPS EXIF 照片的 .zip 檔</div>
+          </div>
+        </div>
+      </div>
+      <div id="search_result">
+        <table class="table table-striped table-hover">
+          <thead>
+            <tr>
+              <th scope="col">名稱 / 標示</th>
+              <th scope="col">來源 / 類別</th>
+              <th scope="col">定位</th>
+              <th scope="col">移除</th>
+            </tr>
+          </thead>
+          <tbody id="search_result_list">
+            <tr><td colspan="4" class="text-muted">尚未載入任何資料</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div id="map">
+      <!-- 匯出圖層專用 Modal -->
+      <div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title text-primary" id="exportModalLabel">匯出圖層為 GeoJSON</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <label for="export-layer-select" class="form-label fw-bold">選擇要匯出的圖層：</label>
+              <select id="export-layer-select" class="form-select">
+                <option value="">-- 請選擇圖層 --</option>
+              </select>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+              <button type="button" class="btn btn-primary" id="export-btn" disabled>確認匯出</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal fade" id="featureModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title text-primary" id="feature-title">詳細資訊</h5>
+              <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="feature-info"></div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-primary" id="google_map">在 Google 地圖開啟</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  var tag = document.createElement('script');
+  tag.src = "https://www.youtube.com/iframe_api";
+  var firstScriptTag = document.getElementsByTagName('script')[0];
+  firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+  var player;
+  function onYouTubeIframeAPIReady() {
+    player = new YT.Player('player', { height: '0', width: '0', videoId: 'H_haJQ20B3A',
+                                       playerVars: { 'autoplay': 0, 'controls': 0, 'disablekb': 1, 'fs': 0, 'modestbranding': 1, 'loop': 1, 'playlist': 'H_haJQ20B3A' },
+                                       events: { 'onReady': onPlayerReady } });
+  }
+  function onPlayerReady(event) {
+    var welcomeModalEl = document.getElementById('welcomeModal');
+    var welcomeModal = new bootstrap.Modal(welcomeModalEl);
+    // YouTube API 準備好時，顯示歡迎視窗
+    welcomeModal.show();
+    const btn = document.getElementById('btn-start');
+    btn?.addEventListener('click', () => {
+      // 視窗會被 data-bs-dismiss 自動關閉，這裡只需處理影片播放即可
+      if (player && typeof player.setVolume === 'function') { 
+        player.setVolume(10); 
+        player.playVideo(); 
+      }
+    });
+  }
+  // 【座標轉換 (Proj4js)】
+  proj4.defs("EPSG:3826", "+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+  proj4.defs("EPSG:4326", "+proj=longlat +datum=WGS84 +no_defs");
+  function transformCoords(x, y, crs) {
+    if (crs === "3826") {
+      const res = proj4("EPSG:3826", "EPSG:4326", [parseFloat(x), parseFloat(y)]);
+      return { lng: res[0], lat: res[1] };
+    }
+    return { lng: parseFloat(x), lat: parseFloat(y) };
+  }
+  function convertDMSToDD(dms, ref) {
+    if (!dms || dms.length < 3) return null;
+    let degrees = typeof dms[0] === 'object' ? dms[0].numerator / dms[0].denominator : dms[0];
+    let minutes = typeof dms[1] === 'object' ? dms[1].numerator / dms[1].denominator : dms[1];
+    let seconds = typeof dms[2] === 'object' ? dms[2].numerator / dms[2].denominator : dms[2];
+    let dd = degrees + (minutes / 60) + (seconds / 3600);
+    if (ref === "S" || ref === "W") { dd = dd * -1; }
+    return dd;
+  }
+  // 【初始化地圖與底圖切換】
+  var map = L.map('map', { center: [23.6, 121.0], zoom: 7, zoomControl: true, renderer: L.canvas() });
+  L.control.scale({ position: 'bottomleft' }).addTo(map);
+  var basemaps = [
+    L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', { maxZoom: 20, id: 'EMAP', label: '通用電子地圖' }),
+    L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', { maxZoom: 20, id: 'PHOTO2', label: '正射影像圖' }),
+    L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', { maxZoom: 20, id: 'LUIMAP', label: '土地利用圖' })
+  ];
+  L.Control.Basemaps = L.Control.extend({
+    _map: null,
+    includes: L.Evented ? L.Evented.prototype : L.Mixin.Event,
+    options: { position: "bottomright", tileX: 854, tileY: 444, tileZ: 10, basemaps: [] },
+    basemap: null,
+    onAdd: function (e) {
+      this._map = e;
+      var t = L.DomUtil.create("div", "basemaps leaflet-control closed");
+      L.DomEvent.disableClickPropagation(t);
+      if (!L.Browser.touch) L.DomEvent.disableScrollPropagation(t);
+      this.options.basemaps.forEach(function (s, o) {
+        var a, i = "basemap";
+        if (o === 0) { this.basemap = s; this._map.addLayer(s); i += " active"; } 
+        else if (o === 1) { i += " alt"; }
+        var l = { x: this.options.tileX, y: this.options.tileY };
+        a = L.Util.template(s._url, L.extend({ s: s._getSubdomain(l), x: l.x, y: l.y, z: this.options.tileZ }, s.options));
+        var b = L.DomUtil.create("div", i, t), u = L.DomUtil.create("img", null, b);
+        u.src = a;
+        if (s.options && s.options.label) u.title = s.options.label;
+        L.DomEvent.on(b, "click", function () {
+          if (s !== this.basemap) {
+            e.removeLayer(this.basemap);
+            e.addLayer(s);
+            s.bringToBack();
+            this.basemap = s;
+            L.DomUtil.removeClass(t.getElementsByClassName("basemap active")[0], "active");
+            L.DomUtil.addClass(b, "active");
+            var altIndex = (o + 1) % this.options.basemaps.length;
+            L.DomUtil.removeClass(t.getElementsByClassName("basemap alt")[0], "alt");
+            L.DomUtil.addClass(t.getElementsByClassName("basemap")[altIndex], "alt");
+            L.DomUtil.addClass(t, "closed");
+          }
+        }, this);
+      }, this);
+      L.DomEvent.on(t, "mouseenter", function () { L.DomUtil.removeClass(t, "closed"); });
+      L.DomEvent.on(t, "mouseleave", function () { L.DomUtil.addClass(t, "closed"); });
+      return t;
+    }
+  });
+  L.control.basemaps = function (options) { return new L.Control.Basemaps(options); };
+  map.addControl(L.control.basemaps({ basemaps: basemaps }));
+  L.control.fullscreen({ position: 'topleft', forceSeparateButton: true, forcePseudoFullscreen: true }).addTo(map);
+  L.DomEvent.disableClickPropagation(document.getElementById('featureModal'));
+  
+  // 【圖層與 UI 管理】
+  var controlLayers = L.control.layers(null, null, { collapsed: true }).addTo(map);
+  var spatialLayers = {};
+  var photoLayers = {};
+  var allListItems = [];
+  var cameraIcon = L.divIcon({
+    className: 'camera-marker-wrapper',
+    iconSize: [20, 20],
+    iconAnchor: [10, 7],
+    popupAnchor: [0, -10],
+    html: `
+      <div class="camera-marker">
+        <div class="camera-top"></div>
+        <div class="camera-lens"></div>
+        <div class="camera-flash"></div>
+      </div>`
+  });
+  const googleMapUrl = 'https://www.google.com/maps/search/?api=1&query=';
+  const tbody = document.getElementById("search_result_list");
+  // 渲染列表 UI (含定位與移除按鈕)
+  function renderListUI() {
+    tbody.innerHTML = "";
+    if (allListItems.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" class="text-muted">尚未載入任何資料</td></tr>`;
+      return;
+    }
+    allListItems.forEach((item, index) => {
+      const tr = document.createElement("tr");
+      let typeBadge = `<span class="badge bg-secondary">${item.type}</span>`;
+      if (item.type.includes('CSV')) typeBadge = `<span class="badge bg-success">${item.type}</span>`;
+      if (item.type.includes('GeoJSON')) typeBadge = `<span class="badge bg-info text-dark">${item.type}</span>`;
+      if (item.type === 'PHOTO') typeBadge = `<span class="badge bg-info text-dark">${item.folder || '照片'}</span>`;
+      tr.innerHTML = `
+        <td>${item.title}</td>
+        <td>${typeBadge}</td>
+        <td><button class="btn btn-sm btn-primary locate-btn">定位</button></td>
+        <td><button class="btn btn-sm btn-danger remove-btn">移除</button></td>
+      `;
+      // 定位邏輯
+      tr.querySelector('.locate-btn').addEventListener('click', () => {
+        if (item.layer && item.layer.getBounds && item.layer.getBounds().isValid()) {
+          map.fitBounds(item.layer.getBounds(), { padding: [50, 50] });
+        } else if (item.lat && item.lng) {
+          map.flyTo([item.lat, item.lng], 18);
+        }
+      });
+      // 移除邏輯
+      tr.querySelector('.remove-btn').addEventListener('click', () => { removeItem(index); });
+      tbody.appendChild(tr);
+    });
+  }
+  // 移除單一項目與維護圖層
+  function removeItem(index) {
+    const item = allListItems[index];
+    if (!item) return;
+    if (item.layerGroup && item.layer) {
+      item.layerGroup.removeLayer(item.layer);
+      if (item.layerGroup.getLayers().length === 0) {
+        map.removeLayer(item.layerGroup);
+        controlLayers.removeLayer(item.layerGroup);
+        if (item.layerKey && spatialLayers[item.layerKey]) { delete spatialLayers[item.layerKey]; }
+        if (item.folder && photoLayers[item.folder]) { delete photoLayers[item.folder] }
+      }
+    }
+    allListItems.splice(index, 1);
+    renderListUI();
+  }
+  function showModal(title, properties, lat, lng, extraHtml = "") {
+    document.getElementById("feature-title").textContent = title || "詳細資訊";
+    let html = extraHtml;
+    if (properties && Object.keys(properties).length > 0) {
+      html += `<table class="table table-bordered prop-table"><tbody>`;
+      for (let k in properties) { html += `<tr><th>${k}</th><td>${properties[k]}</td></tr>`; }
+      html += `</tbody></table>`;
+    }
+    document.getElementById("feature-info").innerHTML = html;
+    $('#google_map').off('click').on('click', () => { window.open(googleMapUrl + lat + ',' + lng); });
+    $('#featureModal').modal('show');
+  }
+  function tryParseJSON(text) {
+    try { return JSON.parse(text); } 
+    catch (e1) {
+      try {
+        let cleanText = text
+          .replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '')
+          .replace(/'/g, '"')
+          .replace(/([{,]\s*)([a-zA-Z0-9_$]+)\s*:/g, '$1"$2":')
+          .replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(cleanText);
+      } catch (e2) { throw new Error("JSON 格式無法解析，請確認語法。"); }
+    }
+  }
+  function transformGeoJSONCoords(coords, geomType, crs) {
+    if (crs === "4326") return coords;
+    if (geomType === "Point") {
+      const pt = transformCoords(coords[0], coords[1], crs);
+      return [pt.lng, pt.lat];
+    } else if (geomType === "LineString" || geomType === "MultiPoint") {
+      return coords.map(c => {
+        const pt = transformCoords(c[0], c[1], crs);
+        return [pt.lng, pt.lat];
+      });
+    } else if (geomType === "Polygon" || geomType === "MultiLineString") {
+      return coords.map(ring => ring.map(c => {
+        const pt = transformCoords(c[0], c[1], crs);
+        return [pt.lng, pt.lat];
+      }));
+    } else if (geomType === "MultiPolygon") {
+      return coords.map(poly => poly.map(ring => ring.map(c => {
+        const pt = transformCoords(c[0], c[1], crs);
+        return [pt.lng, pt.lat];
+      })));
+    }
+    return coords;
+  }
+  // 【空間資料處理 (GeoJSON / CSV)】
+  const dataFileInput = document.getElementById('data-file-input');
+  const dataStatusText = document.getElementById('data-status-text');
+  dataFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const crs = document.getElementById('crs-select').value;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (ext === 'geojson' || ext === 'json') { handleGeoJSONFile(file, crs); }
+    else if (ext === 'csv') { handleCSVFile(file, crs); }
+    else { alert("請選擇 .geojson, .json 或 .csv 檔案！"); }
+    dataFileInput.value = "";
+  });
+  function handleGeoJSONFile(file, crs) {
+    dataStatusText.textContent = `正在讀取與轉換 ${file.name}...`;
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      try {
+        const geojsonData = tryParseJSON(event.target.result);
+        if (crs === "3826" && geojsonData.features) {
+          geojsonData.features.forEach(f => {
+            if (f.geometry && f.geometry.coordinates) { f.geometry.coordinates = transformGeoJSONCoords(f.geometry.coordinates, f.geometry.type, crs); }
+          });
+        }
+        let layerKey = `${file.name} (${crs === '3826' ? 'TWD97' : 'WGS84'})`;
+        if (spatialLayers[layerKey]) {
+          layerKey = `${layerKey}_${Date.now().toString().slice(-4)}`;
+        }
+        const layerGroup = L.geoJSON(geojsonData, {
+          style: function () { return { color: "#2b6cb0", weight: 3, opacity: 0.8, fillColor: "#4299e1", fillOpacity: 0.35 }; },
+          onEachFeature: function (feature, layer) {
+            const props = feature.properties || {};
+            const name = props.Name || props.name || props.名稱 || props.財產編號 || props.ID || "地理物件";
+            layer.on('click', (e) => {
+              const latlng = e.latlng || (layer.getBounds ? layer.getBounds().getCenter() : { lat: 0, lng: 0 });
+              showModal(name, props, latlng.lat, latlng.lng);
+            });
+          }
+        });
+        layerGroup.eachLayer(function (layer) {
+          const props = layer.feature ? (layer.feature.properties || {}) : {};
+          const name = props.Name || props.name || props.名稱 || props.財產編號 || props.ID || "地理物件";
+          const geomType = layer.feature && layer.feature.geometry ? layer.feature.geometry.type : 'GeoJSON';
+          allListItems.push({
+            title: name,
+            type: `GeoJSON-${geomType} (${crs === '3826' ? 'TWD97' : 'WGS84'})`,
+            layer: layer,
+            layerGroup: layerGroup,
+            layerKey: layerKey,
+            lat: layer.getLatLng ? layer.getLatLng().lat : (layer.getBounds ? layer.getBounds().getCenter().lat : null),
+            lng: layer.getLatLng ? layer.getLatLng().lng : (layer.getBounds ? layer.getBounds().getCenter().lng : null)
+          });
+        });
+        spatialLayers[layerKey] = layerGroup;
+        controlLayers.addOverlay(layerGroup, `🗺️ ${layerKey}`);
+        map.addLayer(layerGroup);
+        if (layerGroup.getBounds && layerGroup.getBounds().isValid()) { map.fitBounds(layerGroup.getBounds(), { padding: [50, 50] }); }
+        dataStatusText.textContent = `成功載入 GeoJSON：${layerKey}`;
+        renderListUI();
+      } catch (err) { dataStatusText.textContent = "解析 GeoJSON 失敗，請確認格式。"; }
+    };
+    reader.readAsText(file);
+  }
+  function handleCSVFile(file, crs) {
+    dataStatusText.textContent = `正在解析 CSV 點資料 ${file.name}...`;
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: function (results) {
+        const data = results.data;
+        if (!data || data.length === 0) {
+          dataStatusText.textContent = "CSV 檔案無資料！";
+          return;
+        }
+        const headers = Object.keys(data[0]);
+        const cleanHeader = h => h.replace(/^\uFEFF/, '').trim();
+        let xKey = headers.find(h => /^(E|East|lng|lon|longitude|經度|X|東經)$/i.test(cleanHeader(h)));
+        let yKey = headers.find(h => /^(N|North|lat|latitude|緯度|Y|北緯)$/i.test(cleanHeader(h)));
+        if (!xKey) { xKey = headers.find(h => /(lng|lon|longitude|經度|東經|X)/i.test(cleanHeader(h))); }
+        if (!yKey) { yKey = headers.find(h => /(lat|latitude|緯度|北緯|Y)/i.test(cleanHeader(h))); }
+        if (!xKey || !yKey) {
+          dataStatusText.textContent = "未找到座標欄位 （E/N, X/Y 或 經緯度）";
+          alert(`無法自動辨識座標欄位！\n偵測到的表頭為：${headers.join(', ')}\n請確保含有 X/Y、E/N 或 經緯度 相關名稱。`);
+          return;
+        }
+        let layerKey = `${file.name} (點_${crs === '3826' ? 'TWD97' : 'WGS84'})`;
+        if (spatialLayers[layerKey]) { layerKey = `${layerKey}_${Date.now().toString().slice(-4)}`; }
+        const clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
+        const bounds = L.latLngBounds();
+        let validCount = 0;
+        data.forEach((row, index) => {
+          const rawX = row[xKey];
+          const rawY = row[yKey];
+          if (rawX && rawY) {
+            const pt = transformCoords(rawX, rawY, crs);
+            if (!isNaN(pt.lat) && !isNaN(pt.lng)) {
+              validCount++;
+              const title = row.Name || row.name || row.名稱 || row.財產編號 || row.ID || `資料點 #${index + 1}`;
+              const marker = L.marker([pt.lat, pt.lng]);
+              marker.on('click', () => showModal(title, row, pt.lat, pt.lng));
+              clusterGroup.addLayer(marker);
+              bounds.extend([pt.lat, pt.lng]);
+              allListItems.push({ title: title, layer: marker, layerGroup: clusterGroup, layerKey: layerKey, lat: pt.lat, lng: pt.lng,
+                                  type: `CSV-點 (${crs === '3826' ? 'TWD97' : 'WGS84'})`, });
+            }
+          }
+        });
+        if (validCount > 0) {
+          spatialLayers[layerKey] = clusterGroup;
+          controlLayers.addOverlay(clusterGroup, `📊 ${layerKey}`);
+          map.addLayer(clusterGroup);
+          map.fitBounds(bounds, { padding: [50, 50] });
+          dataStatusText.textContent = `成功載入 ${validCount} 個 CSV 點位 (${layerKey})`;
+          renderListUI();
+        } else { dataStatusText.textContent = "CSV 未找到有效的點座標數據。"; }
+      },
+      error: function (err) { dataStatusText.textContent = "解析 CSV 檔案失敗。"; }
+    });
+  }
+  // 【照片 EXIF 處理】
+  const photoFileInput = document.getElementById('photo-file-input');
+  const photoStatusText = document.getElementById('photo-status-text');
+  const photoProgressContainer = document.getElementById('photo-progress-container');
+  const photoProgressBar = document.getElementById('photo-progress-bar');
+  photoFileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      alert("請選擇 .zip 檔案！");
+      return;
+    }
+    handlePhotoZipFile(file);
+    photoFileInput.value = "";
+  });
+  function parsePhotoExif(blob) {
+    return new Promise((resolve) => {
+      let isResolved = false;
+      const timeoutTimer = setTimeout(() => {
+        if (!isResolved) { isResolved = true; resolve(null); }
+      }, 2000);
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(blob);
+      img.onload = function() {
+        try {
+          EXIF.getData(img, function() {
+            if (isResolved) return;
+            isResolved = true;
+            clearTimeout(timeoutTimer);
+            const lat = EXIF.getTag(this, "GPSLatitude");
+            const latRef = EXIF.getTag(this, "GPSLatitudeRef");
+            const lon = EXIF.getTag(this, "GPSLongitude");
+            const lonRef = EXIF.getTag(this, "GPSLongitudeRef");
+            if (lat && lon) {
+              const latitude = convertDMSToDD(lat, latRef);
+              const longitude = convertDMSToDD(lon, lonRef);
+              if (!isNaN(latitude) && !isNaN(longitude)) {
+                URL.revokeObjectURL(objectUrl);
+                resolve({ lat: latitude, lng: longitude });
+                return;
+              }
+            }
+            URL.revokeObjectURL(objectUrl);
+            resolve(null);
+          });
+        } catch (err) {
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeoutTimer);
+            URL.revokeObjectURL(objectUrl);
+            resolve(null);
+          }
+        }
+      };
+      img.onerror = function() {
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timeoutTimer);
+          URL.revokeObjectURL(objectUrl);
+          resolve(null);
+        }
+      };
+      img.src = objectUrl;
+    });
+  }
+  async function handlePhotoZipFile(file) {
+    for (let folderKey in photoLayers) {
+      map.removeLayer(photoLayers[folderKey]);
+      controlLayers.removeLayer(photoLayers[folderKey]);
+    }
+    photoLayers = {};
+    allListItems = allListItems.filter(item => item.type !== 'PHOTO');
+    photoStatusText.textContent = "解壓縮 ZIP 照片檔中...";
+    photoProgressContainer.style.display = "block";
+    photoProgressBar.style.width = "0%";
+    await new Promise(r => setTimeout(r, 50));
+    try {
+      const zip = await JSZip.loadAsync(file);
+      const imageEntries = [];
+      zip.forEach((relativePath, zipEntry) => {
+        if (!zipEntry.dir && !relativePath.includes('__MACOSX') && !relativePath.startsWith('.') &&
+            /\.(jpe?g|png|heic|webp)$/i.test(zipEntry.name)) {
+          imageEntries.push(zipEntry);
+        }
+      });
+      const totalImages = imageEntries.length;
+      if (totalImages === 0) {
+        photoStatusText.textContent = "未找到任何相片檔案。";
+        photoProgressContainer.style.display = "none";
+        renderListUI();
+        return;
+      }
+      let processedCount = 0;
+      const validPoints = [];
+      for (const zipEntry of imageEntries) {
+        try {
+          const blob = await zipEntry.async("blob");
+          const gps = await parsePhotoExif(blob);
+          if (gps) {
+            const pathParts = zipEntry.name.split('/');
+            const filename = pathParts.pop();
+            const folder = pathParts.join('/') || '根目錄';
+            const photoUrl = URL.createObjectURL(blob);
+            validPoints.push({ lat: gps.lat, lng: gps.lng, folder: folder, filename: filename, url: photoUrl });
+          }
+        } catch (err) { }
+        processedCount++;
+        const percent = Math.round((processedCount / totalImages) * 100);
+        photoProgressBar.style.width = percent + "%";
+        photoStatusText.textContent = `解析照片中 ${processedCount}/${totalImages} (${percent}%)`;
+        if (processedCount % 3 === 0) {
+          await new Promise(r => setTimeout(r, 0));
+        }
+      }
+      if (validPoints.length === 0) {
+        photoStatusText.textContent = `解析完成 ${totalImages} 張照片，但均未包含 GPS EXIF 資訊。`;
+        photoProgressContainer.style.display = "none";
+        renderListUI();
+        return;
+      }
+      const bounds = L.latLngBounds();
+      validPoints.forEach(point => {
+        if (!photoLayers[point.folder]) {
+          photoLayers[point.folder] = L.markerClusterGroup({ showCoverageOnHover: false });
+          controlLayers.addOverlay(photoLayers[point.folder], `📷 ${point.folder}`);
+          map.addLayer(photoLayers[point.folder]);
+        }
+        const marker = L.marker([point.lat, point.lng], { icon: cameraIcon });
+        marker.on('click', () => {
+          const imgHtml = `
+            <div class="mb-2"><span class="folder-badge">${point.folder}</span></div>
+            <a href="${point.url}" target="_blank">
+              <img src="${point.url}" class="popup-img" alt="${point.filename}">
+            </a>
+          `;
+          showModal(point.filename, null, point.lat, point.lng, imgHtml);
+        });
+        photoLayers[point.folder].addLayer(marker);
+        bounds.extend([point.lat, point.lng]);
+        allListItems.push({ title: point.filename, type: 'PHOTO', folder: point.folder, layer: marker,
+                            layerGroup: photoLayers[point.folder], lat: point.lat, lng: point.lng });
+      });
+      map.fitBounds(bounds, { padding: [50, 50] });
+      photoStatusText.textContent = `已覆蓋更新！載入 ${validPoints.length} 張相片。`;
+      renderListUI();
+      setTimeout(() => { photoProgressContainer.style.display = "none"; }, 1500);
+    } catch (err) {
+      console.error(err);
+      photoStatusText.textContent = "解析照片 ZIP 失敗。";
+      photoProgressContainer.style.display = "none";
+    }
+  }
+  // ==================== 【地圖按鈕與 GeoJSON 匯出功能】 ====================
+  L.Control.ExportBtn = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd: function (map) {
+      const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+      const btn = L.DomUtil.create('a', 'leaflet-control-export-btn', container);
+      btn.innerHTML = '📤';
+      btn.href = '#';
+      btn.title = '匯出指定圖層為 GeoJSON';
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.on(btn, 'click', function (e) {
+        L.DomEvent.preventDefault(e);
+        openExportModal();
+      });
+      return container;
+    }
+  });
+  map.addControl(new L.Control.ExportBtn());
+  L.DomEvent.disableClickPropagation(document.getElementById('exportModal'));
+  function openExportModal() {
+    const exportSelect = document.getElementById('export-layer-select');
+    const exportBtn = document.getElementById('export-btn');
+    exportSelect.innerHTML = '<option value="">-- 請選擇圖層 --</option>';
+    const activeKeys = new Set();
+    allListItems.forEach(item => {
+      const key = item.layerKey || item.folder;
+      if (key) activeKeys.add(key);
+    });
+    activeKeys.forEach(key => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = key;
+      exportSelect.appendChild(opt);
+    });
+    exportBtn.disabled = true;
+    $('#exportModal').modal('show');
+  }
+  document.getElementById('export-layer-select').addEventListener('change', function () { document.getElementById('export-btn').disabled = !this.value; });
+  document.getElementById('export-btn').addEventListener('click', function () {
+    const selectedKey = document.getElementById('export-layer-select').value;
+    if (!selectedKey) return;
+    const itemsToExport = allListItems.filter(item => (item.layerKey === selectedKey || item.folder === selectedKey));
+    if (itemsToExport.length === 0) {
+      alert("找不到可匯出的物件資料！");
+      return;
+    }
+    const featureCollection = { type: "FeatureCollection", features: [] };
+    itemsToExport.forEach(item => {
+      let feature = null;
+      if (item.layer && item.layer.toGeoJSON) { feature = item.layer.toGeoJSON(); } 
+      else if (item.lat && item.lng) {
+        feature = { geometry: { type: "Point", coordinates: [item.lng, item.lat] },
+                    type: "Feature", properties: { title: item.title, type: item.type } };
+      }
+      if (feature) { featureCollection.features.push(feature); }
+    });
+    const jsonStr = JSON.stringify(featureCollection, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const downloadUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = `${selectedKey.replace(/[/\\?%*:|"<>]/g, '_')}.geojson`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(downloadUrl);    
+    $('#exportModal').modal('hide');
+  });
+  // ==================== 【Leaflet.Draw 繪圖功能】 ====================
+  var drawnItems = new L.FeatureGroup();
+  map.addLayer(drawnItems);
+  controlLayers.addOverlay(drawnItems, "✏️ 自訂繪製圖層");
+  var drawControl = new L.Control.Draw({
+    position: 'topleft',
+    draw: {
+      polyline: { shapeOptions: { color: '#f39c12', weight: 4 } },
+      polygon: { shapeOptions: { color: '#e74c3c', fillColor: '#e74c3c', fillOpacity: 0.4 } },
+      rectangle: { shapeOptions: { color: '#2ecc71', fillColor: '#2ecc71', fillOpacity: 0.4 } },
+      circle: { shapeOptions: { color: '#3498db', fillColor: '#3498db', fillOpacity: 0.4 } },
+      marker: true,
+      circlemarker: false 
+    },
+    edit: {
+      featureGroup: drawnItems, 
+      remove: true
+    }
+  });
+  map.addControl(drawControl);
+  map.on(L.Draw.Event.CREATED, function (e) {
+    var layer = e.layer;
+    var layerType = e.layerType;
+    drawnItems.addLayer(layer);
+    var typeName = {
+      'marker': '繪製點位',
+      'polyline': '繪製折線',
+      'polygon': '繪製多邊形',
+      'rectangle': '繪製矩形',
+      'circle': '繪製圓形'
+    }[layerType] || '自訂圖形';
+    var featureTitle = `${typeName} #${drawnItems.getLayers().length}`;
+    layer.on('click', function (evt) {
+      var latlng = evt.latlng || (layer.getBounds ? layer.getBounds().getCenter() : { lat: 0, lng: 0 });
+      var extraProps = { "圖形類型": typeName };
+      if (layerType === 'circle') { extraProps["半徑(公尺)"] = Math.round(layer.getRadius()); }
+      showModal(featureTitle, extraProps, latlng.lat, latlng.lng);
+    });
+    var itemIndex = allListItems.length;
+    allListItems.push({
+      title: featureTitle,
+      type: `Draw-${typeName}`,
+      layer: layer,
+      layerGroup: drawnItems,
+      layerKey: "自訂繪製圖層",
+      lat: layer.getLatLng ? layer.getLatLng().lat : (layer.getBounds ? layer.getBounds().getCenter().lat : null),
+      lng: layer.getLatLng ? layer.getLatLng().lng : (layer.getBounds ? layer.getBounds().getCenter().lng : null)
+    });
+    renderListUI(); 
+  });
+  map.on(L.Draw.Event.DELETED, function (e) {
+    var layers = e.layers;
+    layers.eachLayer(function (layer) {
+      var idx = allListItems.findIndex(item => item.layer === layer);
+      if (idx !== -1) { allListItems.splice(idx, 1); }
+    });
+    renderListUI();
+  });
+</script>
+</body>
+</html>

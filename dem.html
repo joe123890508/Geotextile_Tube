@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEM 產生與土方計算系統</title>
+    <!-- 引入前端所需的 GIS、3D 、座標轉換與 GeoTIFF 解析套件 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-path@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-delaunay@6"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shpjs/4.0.2/shp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/geotiff"></script>
+    <style>
+        .welcome-overlay.hidden { display: none !important; }
+        .welcome-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            height: 100dvh;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            box-sizing: border-box;
+            pointer-events: auto;
+        }
+        .welcome-content {
+            text-align: center;
+            max-width: 440px;
+            width: 100%;
+            background: rgba(22, 27, 38, 0.95);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 16px;
+            padding: 30px 24px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 173, 181, 0.2);
+            animation: modalPulse 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes modalPulse {
+            0% { transform: scale(0.85); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .welcome-content h2 {
+            font-size: 1.6rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+            background: linear-gradient(45deg, #38bdf8, #10b981);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .welcome-text {
+            color: #94a3b8;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 35px;
+            text-align: left;
+        }
+        .welcome-text p { margin: 0 0 5px 0; }
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        #control-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            bottom: 20px;
+            width: 340px;
+            background: rgba(30, 30, 30, 0.85);
+            backdrop-filter: blur(8px);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            z-index: 10;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        @media screen and (min-width: 769px) {
+            #control-panel {
+                transform: none !important;
+                opacity: 1 !important;
+            }
+        }
+        #output-panel {
+            position: absolute;
+            top: 20px;
+            left: 380px;
+            right: 20px;
+            background: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(8px);
+            padding: 15px 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            z-index: 10;
+            border: 1px solid rgba(0, 173, 181, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+        }
+        #download-btn {
+            position: absolute;
+            right: 20px;
+            bottom: 20px;
+            width: 180px;
+            background-color: #ff9f43;
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.95rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            z-index: 10;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: background 0.3s, transform 0.1s;
+            display: none;
+        }
+        #download-btn:hover { background-color: #ee8a2b; }
+        #download-btn:active { transform: scale(0.96); }
+        #toggle-panel-btn { display: none; }
+        .close-drawer-btn { display: none; }
+        h2 {
+            margin-top: 0;
+            font-size: 1.2rem;
+            color: #00adb5;
+            border-bottom: 2px solid #00adb5;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+            flex-shrink: 0;
+        }
+        h3 {
+            font-size: 0.95rem;
+            margin-top: 0;
+            margin-bottom: 8px;
+            color: #eee;
+        }
+        .scroll-inputs {
+            flex-shrink: 0;
+            overflow-y: auto;
+            max-height: 70%;
+            padding-right: 2px;
+        }
+        .section {
+            background: rgba(45, 45, 45, 0.6);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #444;
+        }
+        .form-group { margin-bottom: 8px; }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.85rem;
+            color: #ccc;
+        }
+        input[type="file"], input[type="number"], select {
+            width: 100%;
+            padding: 8px;
+            background: #252525;
+            border: 1px solid #555;
+            color: white;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 0.85rem;
+        }
+        button {
+            background-color: #00adb5;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            width: 100%;
+            transition: background 0.3s, transform 0.1s;
+            flex-shrink: 0;
+            margin-bottom: 10px;
+        }
+        button:hover { background-color: #008c95; }
+        button:active { transform: scale(0.98); }
+        .tabs {
+            display: flex;
+            background: #222;
+            padding: 3px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            border: 1px solid #444;
+        }
+        .tab-btn {
+            flex: 1;
+            background: transparent;
+            color: #aaa;
+            padding: 8px;
+            font-size: 0.82rem;
+            cursor: pointer;
+            border-radius: 4px;
+            border: none;
+            margin-bottom: 0;
+            font-weight: normal;
+            transition: all 0.2s ease;
+        }
+        .tab-btn:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .tab-btn.active {
+            background: #00adb5;
+            color: white;
+            font-weight: bold;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        #status {
+            flex: 1;
+            background: #050505;
+            border: 1px solid #222;
+            border-radius: 6px;
+            padding: 10px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.82rem;
+            color: #ff9f43;
+            margin-top: 10px;
+            overflow-y: auto;
+            box-sizing: border-box;
+            text-align: left;
+            line-height: 1.4;
+        }
+        .cmd-line { margin-bottom: 4px; word-break: break-all; white-space: pre-line; }
+        .cmd-cursor {
+            display: inline-block;
+            width: 4px;
+            height: 0.85rem;
+            background-color: white;
+            vertical-align: middle;
+            margin-left: 3px;
+            animation: blink 0.8s infinite;
+        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        .result-item {
+            flex: 1;
+            text-align: center;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0 10px;
+        }
+        .result-item:last-child { border-right: none; }
+        .result-label { font-size: 0.8rem; color: #aaa; margin-bottom: 4px; }
+        .result-value { font-size: 1.15rem; font-weight: bold; font-family: monospace; color: #00ffcc; }
+        .warning-box {
+            background: #2b1d1d;
+            border: 1px solid #ff4a4a;
+            color: #ff9f9f;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 0.8rem;
+            font-family: monospace;
+            display: none;
+            white-space: pre-line;
+            flex-shrink: 0;
+        }
+        #loading-msg {
+            color: #ff9f43;
+            font-weight: bold;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+            text-align: center;
+            display: none;
+            flex-shrink: 0;
+        }
+        @media screen and (max-width: 768px) {
+            #output-panel {
+                top: 0; left: 0; right: 0;
+                border-radius: 0; border: none; border-bottom: 1px solid rgba(0, 173, 181, 0.3);
+                background: rgba(15, 15, 15, 0.93);
+                overflow-x: hidden; 
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 10px 5px;
+                padding: 12px 8px;
+            }
+            .result-item { 
+                flex: unset; 
+                padding: 4px 2px; 
+                border-right: none; 
+                min-width: unset;
+                background: rgba(255, 255, 255, 0.02);
+                border-radius: 4px;
+            }
+            .result-label { font-size: 0.72rem; margin-bottom: 2px; }
+            .result-value { font-size: 1rem; }
+            #control-panel {
+                top: auto; left: 0; right: 0; bottom: 0;
+                width: 100vw; height: 60vh; max-height: 500px;
+                border-radius: 16px 16px 0 0;
+                border: 1px solid rgba(255, 255, 255, 0.15); border-bottom: none;
+                padding: 16px;
+                background: rgba(30, 30, 30, 0.92);
+                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
+                transform: translateY(0); 
+            }
+            #control-panel.collapsed {
+                transform: translateY(100%) !important;
+                opacity: 0 !important;
+                pointer-events: none;
+            }
+            #toggle-panel-btn {
+                display: block; 
+                position: absolute;
+                bottom: 15px; 
+                left: 50%;
+                transform: translateX(-50%);
+                width: calc(100% - 30px); 
+                z-index: 11;
+                background: rgba(1, 107, 24, 0.95);
+                color: white;
+                border: none; 
+                padding: 12px 18px; 
+                border-radius: 8px;
+                font-weight: bold; 
+                box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+                cursor: pointer;
+            }
+            .close-drawer-btn {
+                display: block !important; background: transparent;
+                color: #00adb5; border: 1px solid #00adb5;
+                padding: 6px 12px; font-size: 0.8rem; border-radius: 6px;
+                width: auto; float: right; margin-top: -4px;
+            }
+            .scroll-inputs { flex: 1; max-height: none; margin-bottom: 10px; }
+            input[type="file"], input[type="number"], select { padding: 10px; font-size: 0.9rem; }
+            .tab-btn { padding: 10px 6px; }
+            #status { height: 85px; min-height: 85px; }
+            #download-btn {
+                bottom: calc(60vh + 15px); right: 15px;
+                width: auto; padding: 10px 15px; font-size: 0.85rem;
+            }
+            #control-panel.collapsed ~ #download-btn { bottom: 15px; }
+        }
+        .scroll-inputs { overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; }
+        .scroll-inputs::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body>
+    <div id="player" style="display:none;"></div>
+    <div id="welcome-overlay" class="welcome-overlay hidden">
+        <div class="welcome-content">
+            <h2>提醒說明</h2>
+            <div class="welcome-text">
+                <p>本網站內容僅供參考，不能作為法律證明文件。</p>
+                <p>本網站提供瀏覽下載之DEM地形圖，僅可作為地貌狀況的示意，不具法律效力，不涉及現實世界情況之認定。</p>
+                <p>本網站提供計算之土方成果，僅供推估參考，不具法律效力，實際收方情形以測量技師之簽證結果為準。</p>
+            </div>
+            <button id="btn-start" class="btn">同意以上內容並進入網頁</button>
+        </div>
+    </div>
+    <div id="canvas-container"></div>
+    <button id="toggle-panel-btn" onclick="toggleControlPanel(false)">打開控制台</button>
+    <div id="control-panel">
+        <div>
+            <button class="close-drawer-btn" onclick="toggleControlPanel(true)">收折 ✕</button>
+            <h2 style="text-align: center;">3D DEM 控制台</h2>
+        </div>
+        <div class="scroll-inputs">
+            <div class="section">
+                <h3>1. 上傳點位資料 (.csv / .txt)</h3>
+                <div class="form-group">
+                    <select id="format-select">
+                        <option value="" disabled selected>請選擇資料欄位順序</option>
+                        <option value="NEZ">N, E, Z (北、東、高)</option>
+                        <option value="ENZ">E, N, Z (東、北、高)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <input type="file" id="point-file" accept=".csv,.txt">
+                </div>
+            </div>
+            <div class="section">
+                <h3>2. 上傳範圍資料 (.geojson / .zip)</h3>
+                <div class="form-group">
+                    <input type="file" id="boundary-file" accept=".geojson,.json,.zip">
+                </div>
+            </div>
+            <div class="section">
+                <h3>3. 設計高程 / 原地形對比</h3>
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchTab('constant-z', this)">指定設計高程</button>
+                    <button class="tab-btn" onclick="switchTab('geotiff-z', this)">上傳DEM對比</button>
+                </div>
+                <div id="constant-z" class="tab-content active">
+                    <div class="form-group">
+                        <label for="target-z">指定設計高程 (m)：</label>
+                        <input type="number" id="target-z" value="10" step="0.1">
+                    </div>
+                </div>
+                <div id="geotiff-z" class="tab-content">
+                    <div class="form-group">
+                        <label for="target-tiff">選擇原地形 GeoTIFF (.tif/.tiff/.geotif)：</label>
+                        <input type="file" id="target-tiff" accept=".tif, .tiff, .geotif, .geotiff">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <button id="start-btn">開始計算並渲染模型</button>
+        <div id="loading-msg">正在背景線程中進行高速拓撲插值與 1x1 網格化...</div>
+        <div id="warning-panel" class="warning-box"></div>
+        <div id="status">
+            <div class="cmd-line">&gt; 系統就緒。請上傳資料檔案。<span class="cmd-cursor"></span></div>
+        </div>
+    </div>
+    <div id="output-panel">
+        <div class="result-item">
+            <div class="result-label" id="label-target-mode">設計基準</div>
+            <div class="result-value" id="res-target-z">--</div>
+        </div>
+        <div class="result-item">
+            <div class="result-label">有效網格面積</div>
+            <div class="result-value" id="res-area" style="color: #00adb5;">-- m²</div>
+        </div>
+        <div class="result-item">
+            <div class="result-label">未覆蓋面積</div>
+            <div class="result-value" id="res-hull" style="color: #ff9f43;">-- m²</div>
+        </div>
+        <div class="result-item">
+            <div class="result-label">總挖方體積</div>
+            <div class="result-value" id="res-cut" style="color: #ff4a4a;">-- m³</div>
+        </div>
+        <div class="result-item">
+            <div class="result-label">總填方體積</div>
+            <div class="result-value" id="res-fill" style="color: #00ffcc;">-- m³</div>
+        </div>
+        <div class="result-item">
+            <div class="result-label">淨土方量</div>
+            <div class="result-value" id="res-net" style="color: #ffffff;">-- m³</div>
+        </div>
+    </div>
+    <button id="download-btn">⬇ 下載 DEM (GeoTIFF)</button>
+    <!-- WEB WORKER 核心背景計算碼 -->
+    <script id="worker-code" type="text/javascript">
+        self.onmessage = function(e) {
+            const { parsedPoints, boundaryGeoJSON, targetZ, tiffGrid, bbox, trianglesCache, pointToTriangle } = e.data;
+            try {
+                const minX = Math.floor(bbox[0]); const minY = Math.floor(bbox[1]);
+                const maxX = Math.ceil(bbox[2]); const maxY = Math.ceil(bbox[3]);
+                const width = maxX - minX; const height = maxY - minY;
+                const rasterData = new Float32Array(width * height);
+                rasterData.fill(-9999);
+                function isPointInPolygon(x, y, geom) {
+                    if (!geom) return false;
+                    const coords = geom.coordinates;
+                    if (geom.type === "Polygon") { return pointInSinglePolygon(x, y, coords); } 
+                    else if (geom.type === "MultiPolygon") {
+                        for (let i = 0; i < coords.length; i++) { if (pointInSinglePolygon(x, y, coords[i])) return true; }
+                    }
+                    return false;
+                }
+                function pointInSinglePolygon(x, y, ringCoords) {
+                    const ring = ringCoords[0]; let inside = false;
+                    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                        const xi = ring[i][0], yi = ring[i][1]; const xj = ring[j][0], yj = ring[j][1];
+                        const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                        if (intersect) inside = !inside;
+                    }
+                    return inside;
+                }
+                const numPoints = parsedPoints.length;
+                function interpolateZ(x, y) {
+                    let nearestPtIdx = -1; 
+                    let minPtDistSq = Infinity;
+                    for (let i = 0; i < numPoints; i++) {
+                        const dx = x - parsedPoints[i].x; 
+                        const dy = y - parsedPoints[i].y;
+                        const distSq = dx * dx + dy * dy;
+                        if (distSq < minPtDistSq) { minPtDistSq = distSq; 
+                                                    nearestPtIdx = i; }
+                    }
+                    if (nearestPtIdx < 0) return null;
+                    const candidateTriangles = pointToTriangle[nearestPtIdx];
+                    let minDistanceSq = Infinity; 
+                    let fallbackZ = null;
+                    const eps = -1e-3;
+                    for (let i = 0; i < candidateTriangles.length; i++) {
+                        const tIdx = candidateTriangles[i]; 
+                        const t = trianglesCache[tIdx];
+                        if (!t || t.invDet === 0) continue;
+                        const l1 = ((t.y1 - t.y2) * (x - t.x2) + (t.x2 - t.x1) * (y - t.y2)) * t.invDet;
+                        const l2 = ((t.y2 - t.y0) * (x - t.x2) + (t.x0 - t.x2) * (y - t.y2)) * t.invDet;
+                        const l3 = 1.0 - l1 - l2;
+                        if (l1 >= eps && l2 >= eps && l3 >= eps) { return l1 * t.z0 + l2 * t.z1 + l3 * t.z2; }
+                        const cx = (t.x0 + t.x1 + t.x2) / 3; 
+                        const cy = (t.y0 + t.y1 + t.y2) / 3;
+                        const distSq = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+                        if (distSq < minDistanceSq) { minDistanceSq = distSq;
+                                                      const cl1 = Math.max(0, Math.min(1, l1)); 
+                                                      const cl2 = Math.max(0, Math.min(1, l2)); 
+                                                      const cl3 = Math.max(0, Math.min(1, l3));
+                                                      const sum = cl1 + cl2 + cl3;
+                                                      fallbackZ = sum > 0 ? (cl1 * t.z0 + cl2 * t.z1 + cl3 * t.z2) / sum : t.z0; }
+                    }
+                    return fallbackZ;
+                }
+                function getTiffZ(x, y) {
+                    if (!tiffGrid) return targetZ;
+                    const c = Math.floor((x - tiffGrid.originX) / tiffGrid.pixelX);
+                    const r = Math.floor((y - tiffGrid.originY) / tiffGrid.pixelY);
+                    if (c >= 0 && c < tiffGrid.width && r >= 0 && r < tiffGrid.height) {
+                        const val = tiffGrid.data[r * tiffGrid.width + c];
+                        return (val === tiffGrid.noData || isNaN(val)) ? null : val;
+                    }
+                    return null;
+                }
+                let validGridCount = 0; let totalCut = 0; let totalFill = 0; let outOfHullCount = 0;
+                for (let r = 0; r < height; r++) {
+                    const y = maxY - (r + 0.5); 
+                    for (let c = 0; c < width; c++) {
+                        const x = minX + (c + 0.5);
+                        const isInside = isPointInPolygon(x, y, boundaryGeoJSON); if (!isInside) continue;
+                        const zInterp = interpolateZ(x, y);
+                        if (zInterp === null) { outOfHullCount++; continue; }
+                        const refZ = (tiffGrid) ? getTiffZ(x, y) : targetZ;
+                        if (refZ === null) continue;
+                        rasterData[r * width + c] = zInterp;
+                        const diff = zInterp - refZ;
+                        validGridCount++;
+                        if (diff > 0) { totalCut += diff; } else { totalFill += Math.abs(diff); }
+                    }
+                }
+                self.postMessage({
+                    success: true, validGridCount, totalCut, totalFill, outOfHullCount,
+                    minX, maxX, minY, maxY, width, height, rasterData
+                }, [rasterData.buffer]);
+            } catch (err) { self.postMessage({ success: false, error: err.message }); }
+        };
+    </script>
+    <script>
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+        var player;
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', { height: '0', width: '0', videoId: '410pjjdv76c',
+                                               playerVars: { 'autoplay': 0, 'controls': 0, 'disablekb': 1, 'fs': 0, 'modestbranding': 1, 'loop': 1, 'playlist': '410pjjdv76c' },
+                                               events: { 'onReady': onPlayerReady }
+            });
+        }
+        function onPlayerReady(event) {
+            const btn = document.getElementById('btn-start');
+            const welcomeOverlay = document.getElementById('welcome-overlay');
+            welcomeOverlay?.classList.remove('hidden');
+            btn?.addEventListener('click', () => {
+                welcomeOverlay?.classList.add('hidden');
+                if (player && typeof player.setVolume === 'function') { player.setVolume(10);
+                                                                        player.playVideo(); }
+            });
+        }
+        proj4.defs("EPSG:3826", "+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+        let parsedPoints = []; let boundaryGeoJSON = null; 
+        let scene, camera, renderer, controls;
+        let currentMesh = null, wireframe = null, targetZPlane = null;
+        let pointsCloudGroup = null, boundaryLinesGroup = null; // 記錄 3D 點雲與邊界線的物件
+        let latestDemResult = null; let activeTab = 'constant-z'; let uploadedTiffData = null;
+        document.getElementById('point-file').addEventListener('change', handlePointFile);
+        document.getElementById('boundary-file').addEventListener('change', handleBoundaryFile);
+        document.getElementById('target-tiff').addEventListener('change', handleTiffUpload);
+        document.getElementById('start-btn').addEventListener('click', runAnalysis);
+        document.getElementById('download-btn').addEventListener('click', downloadGeoTIFF);
+        function toggleControlPanel(shouldCollapse) {
+            const panel = document.getElementById('control-panel');
+            if (shouldCollapse) { panel.classList.add('collapsed'); } 
+            else { panel.classList.remove('collapsed'); }
+        }
+        function switchTab(tabId, btnElement) {
+            activeTab = tabId;
+            const container = document.querySelector('.tabs');
+            container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            if (btnElement) btnElement.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+            updateStatus(`已切換至：${tabId === 'constant-z' ? '指定設計高程模式' : 'DEM對比模式'}`);
+        }
+        async function handleTiffUpload(e) {
+            const file = e.target.files[0]; if (!file) return;
+            updateStatus("正在啟動解析，讀取 GeoTIFF 參考地形...", "#ff9f43");
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const tiff = await GeoTIFF.fromArrayBuffer(arrayBuffer);
+                const image = await tiff.getImage();
+                const rawRasters = await image.readRasters({ interleave: true });
+                const width = image.getWidth(); const height = image.getHeight();
+                const fileDirectory = image.getFileDirectory();
+                let originX = null, originY = null, pixelX = null, pixelY = null;
+                if (image.getTiePoints() && image.getTiePoints().length > 0 && fileDirectory.ModelPixelScale) {
+                    const tiepoint = image.getTiePoints()[0]; const pixelScale = fileDirectory.ModelPixelScale;
+                    originX = tiepoint.x; originY = tiepoint.y; pixelX = Math.abs(pixelScale[0]); pixelY = -Math.abs(pixelScale[1]);
+                } 
+                else if (fileDirectory.ModelTransformation) {
+                    const trans = fileDirectory.ModelTransformation;
+                    originX = trans[3]; originY = trans[7]; pixelX = Math.abs(trans[0]); pixelY = -Math.abs(trans[5]);
+                } 
+                else if (image.getGeoKeys() && fileDirectory.GeoTransform) {
+                    const gt = fileDirectory.GeoTransform;
+                    originX = gt[0]; pixelX = Math.abs(gt[1]); originY = gt[3]; pixelY = -Math.abs(gt[5]);
+                }
+                else if (image.getBoundingBox()) {
+                    const bbox = image.getBoundingBox();
+                    originX = bbox[0]; originY = bbox[3]; pixelX = (bbox[2] - bbox[0]) / width; pixelY = -(bbox[3] - bbox[1]) / height;
+                }
+                if (originX === null || originY === null || pixelX === null || pixelY === null) { throw new Error("無法從此 TIFF 提取地理資料。"); }
+                let finalRasterData = (rawRasters instanceof Float32Array) ? rawRasters : new Float32Array(rawRasters);
+                uploadedTiffData = {
+                    width, height, originX, originY, pixelX, pixelY, 
+                    noData: fileDirectory.GDAL_NODATA ? parseFloat(fileDirectory.GDAL_NODATA) : -9999, data: finalRasterData
+                };
+                updateStatus(`GeoTIFF 解析成功！\n網格規格: ${width}x${height} 像素。`, "#00ffcc");
+            } catch(err) {
+                uploadedTiffData = null; updateStatus(`【GeoTIFF 解析失敗】${err.message}`, "#ff4a4a");
+                alert("此 TIFF 檔無法讀取，請確認其格式中介資料。");
+            }
+        }
+        function init3D() {
+            const container = document.getElementById('canvas-container'); if (!container) return;
+            scene = new THREE.Scene(); scene.background = new THREE.Color(0x121212);
+            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 20000);
+            camera.position.set(0, 400, 800);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
+            container.innerHTML = ""; container.appendChild(renderer.domElement);
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; controls.dampingFactor = 0.05;
+            controls.enableZoom = true; controls.minDistance = 10; controls.maxDistance = 15000;
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8); dirLight.position.set(200, 1000, 500); scene.add(dirLight);
+            const gridHelper = new THREE.GridHelper(2000, 40, 0x333333, 0x222222); gridHelper.position.y = -50; scene.add(gridHelper);
+            window.addEventListener('resize', onWindowResize);
+            animate();
+        }
+        function animate() { requestAnimationFrame(animate); if (controls) controls.update(); if (renderer && scene && camera) renderer.render(scene, camera); }
+        function onWindowResize() { if (!camera || !renderer) return; camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+        function handlePointFile(e) {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const text = evt.target.result; const lines = text.split(/\r?\n/);
+                const format = document.getElementById('format-select').value;
+                if (!format) { updateStatus("請選擇資料欄位順序！", "#ff4a4a"); return; }
+                const uniquePointsMap = new Map();
+                for (let line of lines) {
+                    line = line.trim(); if (!line || line.startsWith('#')) continue;
+                    const parts = line.split(/[\s,]+/); if (parts.length < 3) continue;
+                    const val1 = parseFloat(parts[0]); const val2 = parseFloat(parts[1]); const val3 = parseFloat(parts[2]);
+                    if (isNaN(val1) || isNaN(val2) || isNaN(val3)) continue;
+                    const x = (format === 'NEZ') ? val2 : val1; const y = (format === 'NEZ') ? val1 : val2; const z = val3;
+                    const key = `${Math.round(x * 1000)}_${Math.round(y * 1000)}`;
+                    if (!uniquePointsMap.has(key)) { uniquePointsMap.set(key, { x, y, z }); }
+                }
+                parsedPoints = Array.from(uniquePointsMap.values()); checkCoordinateSystems(); 
+                updateStatus(`點位載入成功！篩選出 ${parsedPoints.length} 個節點。`, "#00ffcc");
+            };
+            reader.readAsText(file);
+        }
+        function handleBoundaryFile(e) {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader(); boundaryGeoJSON = null;
+            if (file.name.endsWith('.zip')) {
+                reader.onload = function(evt) {
+                    updateStatus("正在解析 Shapefile (.zip)...", "#ff9f43");
+                    shp(evt.target.result).then(function(geojson) {
+                        boundaryGeoJSON = processMultiPolygon(geojson); checkCoordinateSystems(); updateStatus("Shapefile 邊界資料載入成功！", "#00ffcc");
+                    }).catch(err => { updateStatus("【Shapefile 解析失敗】\n" + err.message, "#ff4a4a"); });
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                reader.onload = function(evt) {
+                    try {
+                        updateStatus("正在解析 GeoJSON...", "#ff9f43"); let rawText = evt.target.result;
+                        const cleanText = rawText.replace(/,(\s*[\]}])/g, '$1'); const parsed = JSON.parse(cleanText);
+                        boundaryGeoJSON = processMultiPolygon(parsed); checkCoordinateSystems(); updateStatus("GeoJSON 邊界資料載入成功！", "#00ffcc");
+                    } catch(err) { updateStatus("【GeoJSON 解析失敗】" + err.message, "#ff4a4a"); }
+                };
+                reader.readAsText(file);
+            }
+        }
+        function processMultiPolygon(geojson) {
+            const flattened = turf.flatten(geojson); if (flattened.features.length === 0) return null;
+            if (flattened.features.length === 1) return flattened.features[0].geometry;
+            const coordinates = [];
+            flattened.features.forEach(f => { if (f.geometry.type === "Polygon") { coordinates.push(f.geometry.coordinates); } });
+            return { type: "MultiPolygon", coordinates: coordinates };
+        }
+        function checkCoordinateSystems() {
+            const warnPanel = document.getElementById('warning-panel'); if (!warnPanel) return; warnPanel.style.display = 'none';
+            if (!parsedPoints || parsedPoints.length === 0 || !boundaryGeoJSON) return; 
+            let ptX = parsedPoints[0].x; let ptY = parsedPoints[0].y; let ptIsWGS84 = (Math.abs(ptX) <= 180 && Math.abs(ptY) <= 90);
+            const bbox = turf.bbox(boundaryGeoJSON); let bIsWGS84 = (Math.abs(bbox[0]) <= 180 && Math.abs(bbox[1]) <= 90);
+            if (ptIsWGS84 !== bIsWGS84) { warnPanel.innerHTML = `【座標系統衝突警告】點位與範圍坐標系不匹配！兩者需一致才能精確運算。`; warnPanel.style.display = 'block'; }
+        }
+        function updateStatus(message, color = "#ff9f43") {
+            const statusDiv = document.getElementById('status');
+            if (!statusDiv) return;
+            const oldCursor = statusDiv.querySelector('.cmd-cursor');
+            if (oldCursor) oldCursor.remove();
+            const newLine = document.createElement('div');
+            newLine.className = 'cmd-line';
+            newLine.style.color = color;
+            newLine.innerText = `> ${message}`;
+            const cursorSpan = document.createElement('span');
+            cursorSpan.className = 'cmd-cursor';
+            newLine.appendChild(cursorSpan);
+            statusDiv.appendChild(newLine);
+            statusDiv.scrollTop = statusDiv.scrollHeight;
+        }
+        // 渲染 3D DEM 模型，並同步繪製點位雲與邊界線
+        function render3DModel(bounds, Scale=10) {
+            if (parsedPoints.length === 0) return; if (!scene) init3D(); if (!scene) return;
+            // 清理舊有的 3D 物件
+            if (currentMesh) scene.remove(currentMesh); 
+            if (wireframe) scene.remove(wireframe); 
+            if (targetZPlane) scene.remove(targetZPlane);
+            if (pointsCloudGroup) scene.remove(pointsCloudGroup);
+            if (boundaryLinesGroup) scene.remove(boundaryLinesGroup);
+            const centerX = (bounds.minX + bounds.maxX) / 2; 
+            const centerY = (bounds.minY + bounds.maxY) / 2; 
+            const centerZ = (bounds.minZ + bounds.maxZ) / 2;
+            const zRange = (bounds.maxZ - bounds.minZ) || 1;
+            // 繪製 DEM 三角網格地形與高程漸層色彩
+            const delaunay = d3.Delaunay.from(parsedPoints, p => p.x, p => p.y); 
+            const triangles = delaunay.triangles;
+            const geometry = new THREE.BufferGeometry(); 
+            const vertices = new Float32Array(parsedPoints.length * 3); 
+            const colors = new Float32Array(parsedPoints.length * 3);
+            parsedPoints.forEach((p, idx) => {
+                vertices[idx * 3] = p.x - centerX; 
+                vertices[idx * 3 + 1] = (p.z - centerZ) * Scale; 
+                vertices[idx * 3 + 2] = -(p.y - centerY);
+                const ratio = (p.z - bounds.minZ) / zRange; 
+                const color = new THREE.Color(); 
+                color.setHSL((1 - ratio) * 0.7, 1.0, 0.5); 
+                colors[idx * 3] = color.r; 
+                colors[idx * 3 + 1] = color.g; 
+                colors[idx * 3 + 2] = color.b;
+            });
+            geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3)); 
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geometry.setIndex(Array.from(triangles)); 
+            geometry.computeVertexNormals();
+            currentMesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.5, metalness: 0.1 })); 
+            scene.add(currentMesh);
+            wireframe = new THREE.LineSegments(new THREE.WireframeGeometry(geometry), new THREE.LineBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.5 })); 
+            scene.add(wireframe);
+            // 顯示上傳的點位資料
+            const ptsGeometry = new THREE.BufferGeometry();
+            ptsGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            const ptsMaterial = new THREE.PointsMaterial({ color: 0x000000, size: 3.5, sizeAttenuation: true }); // 黑色亮點
+            pointsCloudGroup = new THREE.Points(ptsGeometry, ptsMaterial);
+            scene.add(pointsCloudGroup);
+            // 顯示上傳的範圍邊界
+            if (boundaryGeoJSON) {
+                boundaryLinesGroup = new THREE.Group();
+                const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 }); // 青藍色外框線
+                const polys = boundaryGeoJSON.type === "MultiPolygon" ? boundaryGeoJSON.coordinates : [boundaryGeoJSON.coordinates];
+                polys.forEach(polyCoords => {
+                    polyCoords.forEach(ring => {
+                        const linePoints = [];
+                        ring.forEach(pt => {
+                            const x = pt[0] - centerX;
+                            const y = -(pt[1] - centerY);
+                            const z = (bounds.maxZ - centerZ) * Scale + 0.5; // 將邊界線稍微提升 0.5 個單位，避免被 DEM 地形遮擋
+                            linePoints.push(new THREE.Vector3(x, z, y));
+                        });
+                        const lineGeo = new THREE.BufferGeometry().setFromPoints(linePoints);
+                        const line = new THREE.LineLoop(lineGeo, lineMaterial);
+                        boundaryLinesGroup.add(line);
+                    });
+                });
+                scene.add(boundaryLinesGroup);
+            }
+            // 繪製指定高程參考面
+            if (activeTab === 'constant-z') {
+                const targetZ = parseFloat(document.getElementById('target-z').value);
+                const sizeX = bounds.maxX - bounds.minX; 
+                const sizeY = bounds.maxY - bounds.minY;
+                targetZPlane = new THREE.Mesh(new THREE.PlaneGeometry(sizeX * 1.2, sizeY * 1.2), new THREE.MeshBasicMaterial({ color: 0x00adb5, transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
+                targetZPlane.rotation.x = -Math.PI / 2; 
+                targetZPlane.position.set(0, (targetZ - centerZ) * Scale, 0); 
+                scene.add(targetZPlane);
+            }
+            controls.target.set(0, 0, 0); 
+            camera.position.set(0, (bounds.maxX - bounds.minX) * 0.7, (bounds.maxY - bounds.minY) * 0.9); 
+            controls.update();
+        }
+        function runAnalysis() {
+            if (parsedPoints.length < 3 || !boundaryGeoJSON) { alert("請確認點位與範圍邊界皆已上傳。"); return; }
+            if (activeTab === 'geotiff-z' && !uploadedTiffData) { alert("請先上傳用於比對的原地形 .tif 檔。"); return; }
+            updateStatus("啟動空間拓撲運算中...", "#ff9f43");
+            document.getElementById('download-btn').style.display = 'none'; 
+            const loader = document.getElementById('loading-msg'); if (loader) loader.style.display = 'block';
+            if(window.innerWidth <= 768) { toggleControlPanel(true); }
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+            parsedPoints.forEach(p => {
+                if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
+            }); 
+            const delaunay = d3.Delaunay.from(parsedPoints, p => p.x, p => p.y); const dTriangles = delaunay.triangles; const dPoints = delaunay.points;
+            const numPoints = parsedPoints.length; const pointToTriangle = Array.from({ length: numPoints }, () => []); const trianglesCache = [];
+            for (let i = 0; i < dTriangles.length; i += 3) {
+                const i0 = dTriangles[i]; const i1 = dTriangles[i + 1]; const i2 = dTriangles[i + 2];
+                const x0 = dPoints[i0 * 2], y0 = dPoints[i0 * 2 + 1], z0 = parsedPoints[i0].z;
+                const x1 = dPoints[i1 * 2], y1 = dPoints[i1 * 2 + 1], z1 = parsedPoints[i1].z;
+                const x2 = dPoints[i2 * 2], y2 = dPoints[i2 * 2 + 1], z2 = parsedPoints[i2].z;
+                const det = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2); const invDet = Math.abs(det) < 1e-9 ? 0 : 1.0 / det;
+                trianglesCache.push({ x0, y0, z0, x1, y1, z1, x2, y2, z2, invDet });
+                const triIdx = i / 3; pointToTriangle[i0].push(triIdx); pointToTriangle[i1].push(triIdx); pointToTriangle[i2].push(triIdx);
+            }
+            const bbox = turf.bbox(boundaryGeoJSON); const workerBlob = new Blob([document.getElementById('worker-code').textContent], { type: "text/javascript" });
+            const worker = new Worker(URL.createObjectURL(workerBlob)); const targetZ = parseFloat(document.getElementById('target-z').value);
+            worker.postMessage({ parsedPoints, boundaryGeoJSON, targetZ, tiffGrid: (activeTab === 'geotiff-z') ? uploadedTiffData : null, bbox, trianglesCache, pointToTriangle });
+            worker.onmessage = function(e) {
+                if (loader) loader.style.display = 'none'; worker.terminate(); const data = e.data;
+                if (!data.success) { updateStatus("【運算失敗】" + data.error, "#ff4a4a"); return; }
+                latestDemResult = data; document.getElementById('download-btn').style.display = 'block';
+                render3DModel({ minX, maxX, minY, maxY, minZ, maxZ });
+                if (activeTab === 'constant-z') { document.getElementById('label-target-mode').innerText = "指定設計高程"; document.getElementById('res-target-z').innerText = `${targetZ.toFixed(1)} m`; }
+                else { document.getElementById('label-target-mode').innerText = "參考原地形"; document.getElementById('res-target-z').innerText = "GeoTIFF"; }
+                document.getElementById('res-area').innerText = `${data.validGridCount.toLocaleString()} m²`;
+                document.getElementById('res-hull').innerText = `${data.outOfHullCount.toLocaleString()} m²`;
+                document.getElementById('res-cut').innerText = `${data.totalCut.toFixed(1)} m³`;
+                document.getElementById('res-fill').innerText = `${data.totalFill.toFixed(1)} m³`;
+                const netVolume = data.totalCut - data.totalFill; const netEl = document.getElementById('res-net');
+                if (netEl) { netEl.innerText = `${netVolume.toFixed(1)} m³`; netEl.style.color = netVolume > 0 ? "#ff4a4a" : "#00ffcc"; }
+                updateStatus("計算與 3D 模型渲染完成！", "#00ffcc");
+            };
+            worker.onerror = function(err) { if (loader) loader.style.display = 'none'; updateStatus("【線程失敗】" + err.message, "#ff4a4a"); worker.terminate(); };
+        }
+        async function downloadGeoTIFF() {
+            if (!latestDemResult) return; const d = latestDemResult; updateStatus("正在建立 GeoTIFF...", "#ff9f43");
+            try {
+                const raster = new Float32Array(d.rasterData);
+                for (let i=0; i<raster.length; i++) { if (!Number.isFinite(raster[i])) {raster[i] = -9999;} }
+                const buffer = createGeoTIFF_Float32({ width:d.width, height:d.height, data:raster, minX:d.minX, maxY:d.maxY, pixelSizeX:(d.maxX - d.minX)/d.width, pixelSizeY:(d.maxY - d.minY)/d.height, epsg:3826 });
+                const blob = new Blob( [buffer], {type : "image/tiff"} ); const url = URL.createObjectURL(blob);
+                const a = document.createElement("a"); a.href=url; a.download = `DEM_RWD_EPSG3826.tif`;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                updateStatus("GeoTIFF 匯出完成", "#00ffcc");
+            } catch(err){ updateStatus("【匯出失敗】" + err.message,"#ff4a4a"); }
+        }
+        function createGeoTIFF_Float32(opt){
+            const width = opt.width; const height = opt.height; const raster = opt.data; const entries=[];
+            function addTag( tag, type, count, value ){ entries.push({tag, type, count, value}); }
+            const nodataStr = "-9999\0";
+            addTag(256, 4, 1, width); addTag(257, 4, 1, height); addTag(258, 3, 1, 32); addTag(259, 3, 1, 1);
+            addTag(262, 3, 1, 1); addTag(273, 4, 1, 0); addTag(277, 3, 1, 1); addTag(278, 4, 1, height);
+            addTag(279, 4, 1, raster.length * 4); addTag(284, 3, 1, 1); addTag(339, 3, 1, 3); addTag(33550, 12, 3, 0);
+            addTag(33922, 12, 6, 0); addTag(34735, 3, 20, 0);
+            addTag(42113, 2, nodataStr.length, 0);
+            const ifdOffset = 8; const ifdSize = 2 + entries.length * 12 + 4;
+            let offset = Math.ceil((ifdOffset + ifdSize) / 8) * 8; 
+            const nodataStrOffset = offset; offset += 8;
+            const pixelScaleOffset = offset; offset += 24; 
+            const tiePointOffset = offset; offset += 48; 
+            const geoKeyOffset = offset; offset += 40; 
+            const rasterOffset = Math.ceil(offset / 16) * 16;
+            entries.find(e=>e.tag===273).value = rasterOffset; 
+            entries.find(e=>e.tag===33550).value = pixelScaleOffset;
+            entries.find(e=>e.tag===33922).value = tiePointOffset; 
+            entries.find(e=>e.tag===34735).value = geoKeyOffset;
+            entries.find(e=>e.tag===42113).value = nodataStrOffset;
+            const buffer = new ArrayBuffer(rasterOffset + raster.length * 4); 
+            const view = new DataView(buffer);
+            view.setUint8(0, 0x49); view.setUint8(1, 0x49); view.setUint16(2, 42, true); view.setUint32(4, ifdOffset, true);
+            let p = ifdOffset; view.setUint16(p, entries.length, true); p += 2;
+            for(const e of entries){
+                view.setUint16(p, e.tag, true); p+=2; view.setUint16(p, e.type, true); p+=2; view.setUint32(p, e.count, true); p+=4;
+                if(e.type===3 && e.count===1){ view.setUint16(p, e.value, true); p+=4; } else { view.setUint32( p, e.value, true); p+=4; }
+            }
+            view.setUint32(p, 0, true); 
+            p = nodataStrOffset;
+            for(let i=0; i<nodataStr.length; i++){ view.setUint8(p + i, nodataStr.charCodeAt(i)); }
+            p = pixelScaleOffset;
+            view.setFloat64(p, opt.pixelSizeX, true); view.setFloat64(p+8, opt.pixelSizeY, true); view.setFloat64(p+16, 0, true);
+            p = tiePointOffset; const tie = [0, 0, 0, opt.minX, opt.maxY, 0]; for(let i=0; i<6; i++){ view.setFloat64(p+i*8, tie[i], true); }
+            p = geoKeyOffset; const keys=[1,1,0,4, 1024,0,1,1, 1025,0,1,1, 2048,0,1,3826, 3072,0,1,opt.epsg];
+            for(let i=0; i<keys.length; i++){ view.setUint16(p+i*2, keys[i], true); } 
+            p = rasterOffset;
+            for( let i=0; i<raster.length; i++){ view.setFloat32(p, raster[i], true); p+=4; }
+            return buffer;
+        }
+        window.onload = init3D;
+    </script>
+</body>
+</html>
