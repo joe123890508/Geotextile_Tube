@@ -52,95 +52,12 @@
       padding: 0;
       overflow: hidden;
     }
-    #container-fluid {
-      display: flex;
-      flex-direction: row;
-      flex: 1;
-      height: 98%;
-      min-height: 350px;
-      width: 98%;
-      justify-content: center;
-      margin: 0 auto;
-    }
-    #map {
-      height: 99%;
-      width: 48%;
-      position: relative;
-    }
-    #search {
-      height: 100%;
-      width: 48%;
-      padding-left: 15px;
-      padding-right: 15px;
-      display: flex;
-      flex-direction: column;
-    }
-    #search_area {
-      position: sticky;
-      top: 0;
-      background: #fff;
-      z-index: 10;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    #search_result {
-      flex: 1;
-      overflow-y: auto;
-      padding-top: 15px;
-    }
-    #search_result th, #search_result td {
-      text-align: center;
-      vertical-align: middle;
-    }
-    .upload-btn {
-      display: block;
-      width: 100%;
-      text-align: center;
-      padding: 10px 16px;
-      background-color: #3182ce;
-      color: white;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 15px;
-      transition: background-color 0.2s;
-    }
-    .upload-btn:hover { background-color: #2b6cb0; }
-    .upload-btn-green { background-color: #2b8a3e; }
-    .upload-btn-green:hover { background-color: #216a2f; }
-    .file-input { display: none; }
-    .status-text {
-      margin-top: 8px;
-      font-size: 13px;
-      color: #4a5568;
-      text-align: center;
-      word-break: break-all;
-    }
-    .progress-container {
-      width: 100%;
-      background-color: #e2e8f0;
-      border-radius: 4px;
-      overflow: hidden;
-      height: 10px;
-      margin-top: 10px;
-      display: none;
-    }
     .progress-bar {
-      width: 0%;
-      height: 100%;
       background-color: #3182ce;
       transition: width 0.1s ease-in-out;
     }
     .nav-tabs .nav-link { font-weight: 600; color: #495057; }
     .nav-tabs .nav-link.active { color: #0d6efd; }
-    @media (max-width: 768px), (max-aspect-ratio: 1/1) {
-      #container-fluid { flex-direction: column; justify-content: center; align-items: center }
-      #search { height: 60%; width: 100%; }
-      #map { height: 40%; width: 100%; margin-top: 0.15rem !important;}
-      #search_area h1 { margin-bottom: 0.25rem !important; margin-top: 0 !important; }
-      #container-fluid { margin-top: 0.25rem !important; }
-    }
     .basemaps { padding: 4px; }
     .basemaps.closed .basemap { display: none; }
     .basemaps.closed .basemap.alt { display: inline-block; }
@@ -220,23 +137,11 @@
     .popup-img {
       width: 100% !important;
       height: auto !important;
-      max-height: 350px !important;
+      max-height: 500px !important;
       object-fit: contain !important;
       display: block;
       margin-top: 8px;
       border-radius: 4px;
-    }
-    .folder-badge {
-      background-color: #007bff;
-      color: white;
-      padding: 2px 6px;
-      border-radius: 3px;
-      font-size: 12px;
-    }
-    .prop-table {
-      width: 100%;
-      margin-top: 10px;
-      font-size: 0.9rem;
     }
     .prop-table th {
       background-color: #f1f5f9;
@@ -248,23 +153,35 @@
       padding: 6px 10px;
       word-break: break-all;
     }
-    .option-group {
-      background: #f8f9fa;
-      padding: 10px 12px;
-      border-radius: 6px;
-      border: 1px solid #e2e8f0;
-      margin-bottom: 12px;
-    }
-    .option-group label {
-      font-size: 13px;
-      font-weight: 600;
-      color: #2d3748;
-    }
     .leaflet-control-export-btn { font-size: 16px; }
+    @media (max-width: 992px) {
+      #container-fluid { 
+        flex-direction: column !important; 
+        justify-content: flex-start !important; 
+        align-items: center !important;
+        height: 100% !important;
+        margin-top: 0.25rem !important; 
+      }
+      #search {
+        height: 60% !important;
+        width: 100% !important;
+      }
+      #map_container {
+        width: 100% !important;
+        height: 40% !important;
+        padding-right: 0px !important;
+        justify-content: center;
+      }
+      #search_area h1 {
+        margin-bottom: 0.25rem !important;
+        margin-top: 0 !important;
+      }
+    }
   </style>
 </head>
 <body>
-  <div id="player" style="display:none;"></div>
+  <div id="player" class="d-none"></div>
+  <!-- 提醒說明 Modal -->
   <div class="modal fade" id="welcomeModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="welcomeModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" style="max-width: 440px;">
       <div class="modal-content border-0 custom-modal-content">
@@ -274,105 +191,113 @@
             <p class="mb-2">本網站內容僅供參考，不能作為法律證明文件。</p>
             <p class="mb-2">本網站提供繪製、瀏覽、下載之地理資料，僅可作為示意，不具法律效力，不涉及現實世界情況之認定。</p>
           </div>
-          <button type="button" id="btn-start" class="btn  btn-outline-primary w-100 mt-2 py-2 rounded-3" data-bs-dismiss="modal">
+          <button type="button" id="btn-start" class="btn btn-outline-primary w-100 mt-2 py-2 rounded-3" data-bs-dismiss="modal">
             同意以上內容並進入網頁
           </button>
         </div>
       </div>
     </div>
   </div>
-  <div id="container-fluid" class="mt-3">
-    <div id="search">
-      <div id="search_area">
+  <!-- 主要佈局容器 -->
+  <div id="container-fluid" class="d-flex justify-content-center flex-grow-1 h-100 min-vh-50 w-100 mx-auto px-1">
+    <div id="search" class="h-100 w-50 d-flex flex-column pt-2 px-3">
+      <!-- 搜尋/上傳控制區 -->
+      <div id="search_area" class="position-sticky top-0 bg-white z-3 p-2 rounded shadow-sm">
         <h1 class="text-center mt-1 mb-4 fw-bold">簡易圖資展示系統</h1>
         <ul class="nav nav-tabs mb-3 nav-justified" id="uploadTabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="data-tab" data-bs-toggle="tab" data-bs-target="#data-panel" type="button" role="tab">🗺️ 空間資料</button>
+            <button class="nav-link active fw-bold text-secondary" id="data-tab" data-bs-toggle="tab" data-bs-target="#data-panel" type="button" role="tab">🗺️ 空間資料</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="photo-tab" data-bs-toggle="tab" data-bs-target="#photo-panel" type="button" role="tab">📷 照片資料</button>
+            <button class="nav-link fw-bold text-secondary" id="photo-tab" data-bs-toggle="tab" data-bs-target="#photo-panel" type="button" role="tab">📷 照片資料</button>
           </li>
         </ul>
         <div class="tab-content" id="uploadTabContent">
           <!-- 頁籤 1: GeoJSON / CSV -->
           <div class="tab-pane fade show active" id="data-panel" role="tabpanel">
-            <div class="option-group">
-              <label for="crs-select" class="form-label mb-1">選擇資料座標系統 (CRS)：</label>
+            <div class="bg-light p-3 rounded-3 border mb-3">
+              <label for="crs-select" class="form-label mb-1 fs-7 fw-bold text-dark">選擇資料座標系統 (CRS)：</label>
               <select id="crs-select" class="form-select form-select-sm">
                 <option value="4326">EPSG:4326 (WGS84 經緯度)</option>
                 <option value="3826">EPSG:3826 (TWD97 121分帶)</option>
               </select>
             </div>
-            <label for="data-file-input" class="upload-btn upload-btn-green">上傳 GeoJSON / CSV 檔案</label>
-            <input type="file" id="data-file-input" class="file-input" accept=".geojson, .json, .csv">
-            <div class="status-text" id="data-status-text">CSV 支援為點位展繪；GeoJSON 支援點、線、面展繪</div>
+            <!-- 上傳按鈕 -->
+            <label for="data-file-input" class="btn btn-success d-block w-100 py-2 fw-semibold">上傳 GeoJSON / CSV 檔案</label>
+            <input type="file" id="data-file-input" class="d-none" accept=".geojson, .json, .csv">
+            <div class="mt-2 text-center text-secondary small text-break" id="data-status-text">CSV 支援為點位展繪；GeoJSON 支援點、線、面展繪</div>
           </div>
           <!-- 頁籤 2: 照片 ZIP -->
           <div class="tab-pane fade" id="photo-panel" role="tabpanel">
-            <label for="photo-file-input" class="upload-btn">上傳照片 ZIP 檔案</label>
-            <input type="file" id="photo-file-input" class="file-input" accept=".zip">
-            <div class="progress-container" id="photo-progress-container">
-              <div class="progress-bar" id="photo-progress-bar"></div>
+            <label for="photo-file-input" class="btn btn-primary d-block w-100 py-2 fw-semibold">上傳照片 ZIP 檔案</label>
+            <input type="file" id="photo-file-input" class="d-none" accept=".zip">
+            <!-- 進度條：使用 BS5 progress 元件 -->
+            <div class="progress w-100 mt-2 d-none" id="photo-progress-container" style="height: 10px;">
+              <div class="progress-bar bg-primary" id="photo-progress-bar" role="progressbar" style="width: 0%;"></div>
             </div>
-            <div class="status-text" id="photo-status-text">請選擇包含 GPS EXIF 照片的 .zip 檔</div>
+            <div class="mt-2 text-center text-secondary small text-break" id="photo-status-text">請選擇包含 GPS EXIF 照片的 .zip 檔</div>
           </div>
         </div>
       </div>
-      <div id="search_result">
-        <table class="table table-striped table-hover">
+      <!-- 搜尋結果表格 -->
+      <div id="search_result" class="flex-grow-1 overflow-auto mt-3 mb-2">
+        <table class="table table-striped table-hover w-100">
           <thead>
             <tr>
-              <th scope="col">名稱 / 標示</th>
-              <th scope="col">來源 / 類別</th>
-              <th scope="col">定位</th>
-              <th scope="col">移除</th>
+              <th scope="col" class="text-center align-middle">名稱 / 標示</th>
+              <th scope="col" class="text-center align-middle">來源 / 類別</th>
+              <th scope="col" class="text-center align-middle">定位</th>
+              <th scope="col" class="text-center align-middle">移除</th>
             </tr>
           </thead>
           <tbody id="search_result_list">
-            <tr><td colspan="4" class="text-muted">尚未載入任何資料</td></tr>
+            <tr><td colspan="4" class="text-center align-middle text-muted">尚未載入任何資料</td></tr>
           </tbody>
         </table>
       </div>
     </div>
-    <div id="map">
-      <!-- 匯出圖層專用 Modal -->
-      <div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title text-primary" id="exportModalLabel">匯出圖層為 GeoJSON</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-              <label for="export-layer-select" class="form-label fw-bold">選擇要匯出的圖層：</label>
-              <select id="export-layer-select" class="form-select">
-                <option value="">-- 請選擇圖層 --</option>
-              </select>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-              <button type="button" class="btn btn-primary" id="export-btn" disabled>確認匯出</button>
+    <!-- 地圖與 Modal 區塊 -->
+    <div id="map_container" class="d-flex h-100 w-50 py-2 pe-2">
+      <div id="map" class="h-100 w-100 position-relative">
+        <!-- 匯出圖層專用 Modal -->
+          <div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title text-primary fs-4" id="exportModalLabel">匯出圖層為 GeoJSON</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <label for="export-layer-select" class="form-label fw-bold fs-5">選擇要匯出的圖層：</label>
+                <select id="export-layer-select" class="form-select">
+                  <option value="">-- 請選擇圖層 --</option>
+                </select>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="export-btn" disabled>確認匯出</button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      <div class="modal fade" id="featureModal" tabindex="-1" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title text-primary" id="feature-title">詳細資訊</h5>
-              <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="feature-info"></div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-primary" id="google_map">在 Google 地圖開啟</button>
+        <!-- 詳細資訊 Modal -->
+        <div class="modal fade" id="featureModal" tabindex="-1" role="dialog">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title text-primary fs-4" id="feature-title">詳細資訊</h5>
+                <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body" id="feature-info"></div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="google_map">在 Google 地圖開啟</button>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
   </div>
-
 <script>
   var tag = document.createElement('script');
   tag.src = "https://www.youtube.com/iframe_api";
@@ -387,8 +312,7 @@
   function onPlayerReady(event) {
     var welcomeModalEl = document.getElementById('welcomeModal');
     var welcomeModal = new bootstrap.Modal(welcomeModalEl);
-    // YouTube API 準備好時，顯示歡迎視窗
-    welcomeModal.show();
+    welcomeModal.show(); // YouTube API 準備好時，顯示歡迎視窗
     const btn = document.getElementById('btn-start');
     btn?.addEventListener('click', () => {
       // 視窗會被 data-bs-dismiss 自動關閉，這裡只需處理影片播放即可
@@ -418,7 +342,7 @@
     return dd;
   }
   // 【初始化地圖與底圖切換】
-  var map = L.map('map', { center: [23.6, 121.0], zoom: 7, zoomControl: true, renderer: L.canvas() });
+  var map = L.map('map', { center: [23.6, 121.0], zoom: 8, zoomControl: true, renderer: L.canvas() });
   L.control.scale({ position: 'bottomleft' }).addTo(map);
   var basemaps = [
     L.tileLayer('https://wmts.nlsc.gov.tw/wmts/{id}/default/GoogleMapsCompatible/{z}/{y}/{x}.png', { maxZoom: 20, id: 'EMAP', label: '通用電子地圖' }),
@@ -468,31 +392,26 @@
   map.addControl(L.control.basemaps({ basemaps: basemaps }));
   L.control.fullscreen({ position: 'topleft', forceSeparateButton: true, forcePseudoFullscreen: true }).addTo(map);
   L.DomEvent.disableClickPropagation(document.getElementById('featureModal'));
-  
   // 【圖層與 UI 管理】
   var controlLayers = L.control.layers(null, null, { collapsed: true }).addTo(map);
   var spatialLayers = {};
   var photoLayers = {};
   var allListItems = [];
-  var cameraIcon = L.divIcon({
-    className: 'camera-marker-wrapper',
-    iconSize: [20, 20],
-    iconAnchor: [10, 7],
-    popupAnchor: [0, -10],
-    html: `
-      <div class="camera-marker">
-        <div class="camera-top"></div>
-        <div class="camera-lens"></div>
-        <div class="camera-flash"></div>
-      </div>`
-  });
+  var cameraIcon = L.divIcon({iconSize: [20, 20], iconAnchor: [10, 7], popupAnchor: [0, -10], className: 'camera-marker-wrapper',
+                              html: `
+                              <div class="camera-marker">
+                                <div class="camera-top"></div>
+                                <div class="camera-lens"></div>
+                                <div class="camera-flash"></div>
+                              </div>`
+    });
   const googleMapUrl = 'https://www.google.com/maps/search/?api=1&query=';
   const tbody = document.getElementById("search_result_list");
   // 渲染列表 UI (含定位與移除按鈕)
   function renderListUI() {
     tbody.innerHTML = "";
     if (allListItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="4" class="text-muted">尚未載入任何資料</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" class="text-center align-middle text-muted">尚未載入任何資料</td></tr>`;
       return;
     }
     allListItems.forEach((item, index) => {
@@ -502,10 +421,10 @@
       if (item.type.includes('GeoJSON')) typeBadge = `<span class="badge bg-info text-dark">${item.type}</span>`;
       if (item.type === 'PHOTO') typeBadge = `<span class="badge bg-info text-dark">${item.folder || '照片'}</span>`;
       tr.innerHTML = `
-        <td>${item.title}</td>
-        <td>${typeBadge}</td>
-        <td><button class="btn btn-sm btn-primary locate-btn">定位</button></td>
-        <td><button class="btn btn-sm btn-danger remove-btn">移除</button></td>
+        <td class="text-center align-middle">${item.title}</td>
+        <td class="text-center align-middle">${typeBadge}</td>
+        <td class="text-center align-middle"><button class="btn btn-sm btn-primary locate-btn">定位</button></td>
+        <td class="text-center align-middle"><button class="btn btn-sm btn-danger remove-btn">移除</button></td>
       `;
       // 定位邏輯
       tr.querySelector('.locate-btn').addEventListener('click', () => {
@@ -516,31 +435,32 @@
         }
       });
       // 移除邏輯
-      tr.querySelector('.remove-btn').addEventListener('click', () => { removeItem(index); });
+      tr.querySelector('.remove-btn').addEventListener('click', () => { removeItem(item); });
       tbody.appendChild(tr);
     });
   }
   // 移除單一項目與維護圖層
-  function removeItem(index) {
-    const item = allListItems[index];
-    if (!item) return;
-    if (item.layerGroup && item.layer) {
-      item.layerGroup.removeLayer(item.layer);
-      if (item.layerGroup.getLayers().length === 0) {
-        map.removeLayer(item.layerGroup);
-        controlLayers.removeLayer(item.layerGroup);
-        if (item.layerKey && spatialLayers[item.layerKey]) { delete spatialLayers[item.layerKey]; }
-        if (item.folder && photoLayers[item.folder]) { delete photoLayers[item.folder] }
+  function removeItem(itemToRemove) {
+    if (!itemToRemove) return;
+    // 移除地圖圖層
+    if (itemToRemove.layerGroup && itemToRemove.layer) {
+      itemToRemove.layerGroup.removeLayer(itemToRemove.layer);
+      if (itemToRemove.layerGroup.getLayers().length === 0) {
+        map.removeLayer(itemToRemove.layerGroup);
+        if (typeof controlLayers !== 'undefined') controlLayers.removeLayer(itemToRemove.layerGroup);
+        if (itemToRemove.layerKey && spatialLayers[itemToRemove.layerKey]) { delete spatialLayers[itemToRemove.layerKey]; }
+        if (itemToRemove.folder && photoLayers[itemToRemove.folder]) { delete photoLayers[itemToRemove.folder]; }
       }
     }
-    allListItems.splice(index, 1);
+    allListItems = allListItems.filter(item => item !== itemToRemove); // 從陣列中過濾掉該項目
     renderListUI();
   }
   function showModal(title, properties, lat, lng, extraHtml = "") {
+    if (document.querySelector('.leaflet-draw-toolbar-button-enabled')) return;
     document.getElementById("feature-title").textContent = title || "詳細資訊";
     let html = extraHtml;
     if (properties && Object.keys(properties).length > 0) {
-      html += `<table class="table table-bordered prop-table"><tbody>`;
+      html += `<table class="table-bordered prop-table table w-100 mt-2 fs-6"><tbody>`;
       for (let k in properties) { html += `<tr><th>${k}</th><td>${properties[k]}</td></tr>`; }
       html += `</tbody></table>`;
     }
@@ -609,9 +529,7 @@
           });
         }
         let layerKey = `${file.name} (${crs === '3826' ? 'TWD97' : 'WGS84'})`;
-        if (spatialLayers[layerKey]) {
-          layerKey = `${layerKey}_${Date.now().toString().slice(-4)}`;
-        }
+        if (spatialLayers[layerKey]) { layerKey = `${layerKey}_${Date.now().toString().slice(-4)}`; }
         const layerGroup = L.geoJSON(geojsonData, {
           style: function () { return { color: "#2b6cb0", weight: 3, opacity: 0.8, fillColor: "#4299e1", fillOpacity: 0.35 }; },
           onEachFeature: function (feature, layer) {
@@ -627,14 +545,10 @@
           const props = layer.feature ? (layer.feature.properties || {}) : {};
           const name = props.Name || props.name || props.名稱 || props.財產編號 || props.ID || "地理物件";
           const geomType = layer.feature && layer.feature.geometry ? layer.feature.geometry.type : 'GeoJSON';
-          allListItems.push({
-            title: name,
-            type: `GeoJSON-${geomType} (${crs === '3826' ? 'TWD97' : 'WGS84'})`,
-            layer: layer,
-            layerGroup: layerGroup,
-            layerKey: layerKey,
-            lat: layer.getLatLng ? layer.getLatLng().lat : (layer.getBounds ? layer.getBounds().getCenter().lat : null),
-            lng: layer.getLatLng ? layer.getLatLng().lng : (layer.getBounds ? layer.getBounds().getCenter().lng : null)
+          allListItems.push({ title: name, type: `GeoJSON-${geomType} (${crs === '3826' ? 'TWD97' : 'WGS84'})`,
+                              layer: layer, layerGroup: layerGroup, layerKey: layerKey,
+                              lat: layer.getLatLng ? layer.getLatLng().lat : (layer.getBounds ? layer.getBounds().getCenter().lat : null),
+                              lng: layer.getLatLng ? layer.getLatLng().lng : (layer.getBounds ? layer.getBounds().getCenter().lng : null)
           });
         });
         spatialLayers[layerKey] = layerGroup;
@@ -721,9 +635,7 @@
   function parsePhotoExif(blob) {
     return new Promise((resolve) => {
       let isResolved = false;
-      const timeoutTimer = setTimeout(() => {
-        if (!isResolved) { isResolved = true; resolve(null); }
-      }, 2000);
+      const timeoutTimer = setTimeout(() => { if (!isResolved) { isResolved = true; resolve(null); } }, 2000);
       const img = new Image();
       const objectUrl = URL.createObjectURL(blob);
       img.onload = function() {
@@ -784,9 +696,7 @@
       const imageEntries = [];
       zip.forEach((relativePath, zipEntry) => {
         if (!zipEntry.dir && !relativePath.includes('__MACOSX') && !relativePath.startsWith('.') &&
-            /\.(jpe?g|png|heic|webp)$/i.test(zipEntry.name)) {
-          imageEntries.push(zipEntry);
-        }
+            /\.(jpe?g|png|heic|webp)$/i.test(zipEntry.name)) { imageEntries.push(zipEntry); }
       });
       const totalImages = imageEntries.length;
       if (totalImages === 0) {
@@ -813,9 +723,7 @@
         const percent = Math.round((processedCount / totalImages) * 100);
         photoProgressBar.style.width = percent + "%";
         photoStatusText.textContent = `解析照片中 ${processedCount}/${totalImages} (${percent}%)`;
-        if (processedCount % 3 === 0) {
-          await new Promise(r => setTimeout(r, 0));
-        }
+        if (processedCount % 3 === 0) { await new Promise(r => setTimeout(r, 0)); }
       }
       if (validPoints.length === 0) {
         photoStatusText.textContent = `解析完成 ${totalImages} 張照片，但均未包含 GPS EXIF 資訊。`;
@@ -833,7 +741,6 @@
         const marker = L.marker([point.lat, point.lng], { icon: cameraIcon });
         marker.on('click', () => {
           const imgHtml = `
-            <div class="mb-2"><span class="folder-badge">${point.folder}</span></div>
             <a href="${point.url}" target="_blank">
               <img src="${point.url}" class="popup-img" alt="${point.filename}">
             </a>
@@ -855,7 +762,7 @@
       photoProgressContainer.style.display = "none";
     }
   }
-  // ==================== 【地圖按鈕與 GeoJSON 匯出功能】 ====================
+  // 【地圖按鈕與 GeoJSON 匯出功能】
   L.Control.ExportBtn = L.Control.extend({
     options: { position: 'topleft' },
     onAdd: function (map) {
@@ -923,55 +830,39 @@
     URL.revokeObjectURL(downloadUrl);    
     $('#exportModal').modal('hide');
   });
-  // ==================== 【Leaflet.Draw 繪圖功能】 ====================
+  // 【Leaflet.Draw 繪圖功能】
   var drawnItems = new L.FeatureGroup();
-  map.addLayer(drawnItems);
-  controlLayers.addOverlay(drawnItems, "✏️ 自訂繪製圖層");
   var drawControl = new L.Control.Draw({
     position: 'topleft',
-    draw: {
-      polyline: { shapeOptions: { color: '#f39c12', weight: 4 } },
-      polygon: { shapeOptions: { color: '#e74c3c', fillColor: '#e74c3c', fillOpacity: 0.4 } },
-      rectangle: { shapeOptions: { color: '#2ecc71', fillColor: '#2ecc71', fillOpacity: 0.4 } },
-      circle: { shapeOptions: { color: '#3498db', fillColor: '#3498db', fillOpacity: 0.4 } },
-      marker: true,
-      circlemarker: false 
-    },
-    edit: {
-      featureGroup: drawnItems, 
-      remove: true
-    }
+    draw: { marker: true, circlemarker: false,
+            polyline: { shapeOptions: { color: '#f39c12', weight: 4 } },
+            polygon: { shapeOptions: { color: '#e74c3c', fillColor: '#e74c3c', fillOpacity: 0.4 } },
+            rectangle: { shapeOptions: { color: '#2ecc71', fillColor: '#2ecc71', fillOpacity: 0.4 } },
+            circle: { shapeOptions: { color: '#3498db', fillColor: '#3498db', fillOpacity: 0.4 } } },
+    edit: { featureGroup: drawnItems, remove: true }
   });
   map.addControl(drawControl);
   map.on(L.Draw.Event.CREATED, function (e) {
     var layer = e.layer;
     var layerType = e.layerType;
+    if (!map.hasLayer(drawnItems)) {
+        drawnItems.addTo(map);
+        controlLayers.addOverlay(drawnItems, "✏️ 自訂繪製圖層"); 
+    }
     drawnItems.addLayer(layer);
-    var typeName = {
-      'marker': '繪製點位',
-      'polyline': '繪製折線',
-      'polygon': '繪製多邊形',
-      'rectangle': '繪製矩形',
-      'circle': '繪製圓形'
-    }[layerType] || '自訂圖形';
+    var typeName = { 'marker': '繪製點位', 'polyline': '繪製折線', 'polygon': '繪製多邊形', 'rectangle': '繪製矩形','circle': '繪製圓形' }[layerType] || '自訂圖形';
     var featureTitle = `${typeName} #${drawnItems.getLayers().length}`;
-    layer.on('click', function (evt) {
+    setTimeout(() => { layer.on('click', function (evt) {
       var latlng = evt.latlng || (layer.getBounds ? layer.getBounds().getCenter() : { lat: 0, lng: 0 });
       var extraProps = { "圖形類型": typeName };
       if (layerType === 'circle') { extraProps["半徑(公尺)"] = Math.round(layer.getRadius()); }
       showModal(featureTitle, extraProps, latlng.lat, latlng.lng);
-    });
+    }); }, 100);
     var itemIndex = allListItems.length;
-    allListItems.push({
-      title: featureTitle,
-      type: `Draw-${typeName}`,
-      layer: layer,
-      layerGroup: drawnItems,
-      layerKey: "自訂繪製圖層",
-      lat: layer.getLatLng ? layer.getLatLng().lat : (layer.getBounds ? layer.getBounds().getCenter().lat : null),
-      lng: layer.getLatLng ? layer.getLatLng().lng : (layer.getBounds ? layer.getBounds().getCenter().lng : null)
-    });
-    renderListUI(); 
+    allListItems.push({ title: featureTitle, type: `Draw-${typeName}`, layer: layer, layerGroup: drawnItems, layerKey: "自訂繪製圖層",
+                        lat: layer.getLatLng ? layer.getLatLng().lat : (layer.getBounds ? layer.getBounds().getCenter().lat : null),
+                        lng: layer.getLatLng ? layer.getLatLng().lng : (layer.getBounds ? layer.getBounds().getCenter().lng : null) });
+    renderListUI();
   });
   map.on(L.Draw.Event.DELETED, function (e) {
     var layers = e.layers;
