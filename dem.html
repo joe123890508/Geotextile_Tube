@@ -442,8 +442,8 @@
             <div class="result-value" id="res-area" style="color: #00adb5;">-- m²</div>
         </div>
         <div class="result-item">
-            <div class="result-label">未覆蓋面積</div>
-            <div class="result-value" id="res-hull" style="color: #ff9f43;">-- m²</div>
+            <div class="result-label">最大點距 (Δz≥0.5 / Δz<0.5)</div>
+            <div class="result-value" id="res-edge" style="color: #ff9f43; font-size: 0.95rem;">-- / --</div>
         </div>
         <div class="result-item">
             <div class="result-label">總挖方體積</div>
@@ -560,7 +560,6 @@
         var tag = document.createElement('script');
         tag.src = "https://www.youtube.com/iframe_api";
         var firstScriptTag = document.getElementsByTagName('script')[0];
-        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
         var player;
         function onYouTubeIframeAPIReady() {
             player = new YT.Player('player', { height: '0', width: '0', videoId: '410pjjdv76c',
@@ -582,7 +581,7 @@
         let parsedPoints = []; let boundaryGeoJSON = null; 
         let scene, camera, renderer, controls;
         let currentMesh = null, wireframe = null, targetZPlane = null;
-        let pointsCloudGroup = null, boundaryLinesGroup = null; // 記錄 3D 點雲與邊界線的物件
+        let pointsCloudGroup = null, boundaryLinesGroup = null, maxEdgesGroup = null; // 記錄 3D 點雲、邊界線與最大點距的物件
         let latestDemResult = null; let activeTab = 'constant-z'; let uploadedTiffData = null;
         document.getElementById('point-file').addEventListener('change', handlePointFile);
         document.getElementById('boundary-file').addEventListener('change', handleBoundaryFile);
@@ -735,6 +734,76 @@
             statusDiv.appendChild(newLine);
             statusDiv.scrollTop = statusDiv.scrollHeight;
         }
+        // 計算外接圓與內切圓半徑比例 (R/r)
+        function getRadiusRatio(p0, p1, p2) {
+            const dx0 = p0[0] - p1[0], dy0 = p0[1] - p1[1];
+            const dx1 = p1[0] - p2[0], dy1 = p1[1] - p2[1];
+            const dx2 = p2[0] - p0[0], dy2 = p2[1] - p0[1];
+            const a = Math.sqrt(dx0*dx0 + dy0*dy0);
+            const b = Math.sqrt(dx1*dx1 + dy1*dy1);
+            const c = Math.sqrt(dx2*dx2 + dy2*dy2);
+            const s = (a + b + c) / 2;
+            const areaSq = s * (s - a) * (s - b) * (s - c);
+            if (areaSq <= 1e-10) return Infinity; // 退化之共線三角形
+            // 外接圓 R = (abc)/(4*Area), 內切圓 r = Area/s, Q = R/r = (a*b*c*s) / (4*Area^2)
+            return (a * b * c * s) / (4 * areaSq);
+        }
+        // 遞迴剔除邊界過度狹長的三角形
+        function pruneBoundaryTriangles(delaunay, points, threshold = 7.0) {
+            const numTriangles = delaunay.triangles.length / 3;
+            const deleted = new Uint8Array(numTriangles);
+            const halfedges = new Int32Array(delaunay.halfedges); // 複製以允許安全修改
+            const triangles = delaunay.triangles;
+            const queue = [];
+            // 找出所有初始位在最外層的邊界三角形
+            for (let e = 0; e < halfedges.length; e++) {
+                if (halfedges[e] === -1) {
+                    const t = Math.floor(e / 3);
+                    if (!deleted[t]) {
+                        queue.push(t);
+                        deleted[t] = 2; // 狀態2為已在佇列中，避免重複推入
+                    }
+                }
+            }
+            // 處理佇列 (從外緣向內部遞迴剝離)
+            while (queue.length > 0) {
+                const t = queue.shift();
+                deleted[t] = 0; 
+                // 確認該三角形是否仍包含邊界邊 (因為鄰居可能已經處理完)
+                let hasBoundaryEdge = false;
+                for (let i = 0; i < 3; i++) {
+                    if (halfedges[t * 3 + i] === -1) { hasBoundaryEdge = true; break; }
+                }
+                if (!hasBoundaryEdge) continue;
+                // 取得三個頂點平面座標
+                const i0 = triangles[t * 3], i1 = triangles[t * 3 + 1], i2 = triangles[t * 3 + 2];
+                const p0 = [points[i0 * 2], points[i0 * 2 + 1]];
+                const p1 = [points[i1 * 2], points[i1 * 2 + 1]];
+                const p2 = [points[i2 * 2], points[i2 * 2 + 1]];
+                const ratio = getRadiusRatio(p0, p1, p2);
+                // 若大於閾值 (過於狹長)，則刪除此三角形並釋放內側邊界
+                if (ratio > threshold) {
+                    deleted[t] = 1; // 狀態1的正式剔除
+                    for (let i = 0; i < 3; i++) {
+                        const e = t * 3 + i;
+                        const e_opp = halfedges[e];
+                        if (e_opp !== -1) {
+                            halfedges[e_opp] = -1; // 切斷與內部鄰居的連結，使其變成新邊界
+                            const t_opp = Math.floor(e_opp / 3);
+                            // 將新曝露的邊界三角形加入佇列
+                            if (deleted[t_opp] !== 1 && deleted[t_opp] !== 2) {
+                                queue.push(t_opp);
+                                deleted[t_opp] = 2;
+                            }
+                        }
+                    }
+                }
+            }
+            // 收集保留下來的三角形
+            const filteredTriangles = [];
+            for (let t = 0; t < numTriangles; t++) { if (deleted[t] !== 1) { filteredTriangles.push(triangles[t * 3], triangles[t * 3 + 1], triangles[t * 3 + 2]); } }
+            return { deleted, filteredTriangles };
+        }
         // 渲染 3D DEM 模型，並同步繪製點位雲與邊界線
         function render3DModel(bounds, Scale=10) {
             if (parsedPoints.length === 0) return; if (!scene) init3D(); if (!scene) return;
@@ -744,13 +813,19 @@
             if (targetZPlane) scene.remove(targetZPlane);
             if (pointsCloudGroup) scene.remove(pointsCloudGroup);
             if (boundaryLinesGroup) scene.remove(boundaryLinesGroup);
+            if (maxEdgesGroup) scene.remove(maxEdgesGroup);
             const centerX = (bounds.minX + bounds.maxX) / 2; 
             const centerY = (bounds.minY + bounds.maxY) / 2; 
             const centerZ = (bounds.minZ + bounds.maxZ) / 2;
             const zRange = (bounds.maxZ - bounds.minZ) || 1;
             // 繪製 DEM 三角網格地形與高程漸層色彩
             const delaunay = d3.Delaunay.from(parsedPoints, p => p.x, p => p.y); 
-            const triangles = delaunay.triangles;
+            let triangles;
+            if (latestDemResult && latestDemResult.filteredTriangles) {
+                triangles = latestDemResult.filteredTriangles;
+            } else {
+                triangles = Array.from(delaunay.triangles);
+            }
             const geometry = new THREE.BufferGeometry(); 
             const vertices = new Float32Array(parsedPoints.length * 3); 
             const colors = new Float32Array(parsedPoints.length * 3);
@@ -767,7 +842,7 @@
             });
             geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3)); 
             geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-            geometry.setIndex(Array.from(triangles)); 
+            geometry.setIndex(triangles); 
             geometry.computeVertexNormals();
             currentMesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.5, metalness: 0.1 })); 
             scene.add(currentMesh);
@@ -790,7 +865,7 @@
                         ring.forEach(pt => {
                             const x = pt[0] - centerX;
                             const y = -(pt[1] - centerY);
-                            const z = (bounds.maxZ - centerZ) * Scale + 0.5; // 將邊界線稍微提升 0.5 個單位，避免被 DEM 地形遮擋
+                            const z = (bounds.maxZ - centerZ) * Scale + 0.35; // 將邊界線稍微提升 0.35 個單位，避免被 DEM 地形遮擋
                             linePoints.push(new THREE.Vector3(x, z, y));
                         });
                         const lineGeo = new THREE.BufferGeometry().setFromPoints(linePoints);
@@ -799,6 +874,25 @@
                     });
                 });
                 scene.add(boundaryLinesGroup);
+                if (latestDemResult && (latestDemResult.ptsGe05 || latestDemResult.ptsLt05)) {
+                    maxEdgesGroup = new THREE.Group();
+                    const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 }); // 紅色線條
+                    const addRedLine = (pts) => {
+                        if (!pts) return;
+                        const points = [];
+                        pts.forEach(p => {
+                            const x = p.x - centerX;
+                            const y = -(p.y - centerY);
+                            const z = (p.z - centerZ) * Scale + 0.35; // 稍微抬高 0.35 確保不會被 DEM 地形遮擋
+                            points.push(new THREE.Vector3(x, z, y));
+                        });
+                        const geo = new THREE.BufferGeometry().setFromPoints(points);
+                        maxEdgesGroup.add(new THREE.Line(geo, edgeMaterial));
+                    };
+                    addRedLine(latestDemResult.ptsGe05);
+                    addRedLine(latestDemResult.ptsLt05);
+                    scene.add(maxEdgesGroup);
+                }
             }
             // 繪製指定高程參考面
             if (activeTab === 'constant-z') {
@@ -826,15 +920,37 @@
                 if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
             }); 
             const delaunay = d3.Delaunay.from(parsedPoints, p => p.x, p => p.y); const dTriangles = delaunay.triangles; const dPoints = delaunay.points;
+            const pruneThreshold = 50.0; // 邊緣狹長三角形的剔除閾值
+            const { deleted, filteredTriangles } = pruneBoundaryTriangles(delaunay, dPoints, pruneThreshold);
             const numPoints = parsedPoints.length; const pointToTriangle = Array.from({ length: numPoints }, () => []); const trianglesCache = [];
+            let cacheIdx = 0;
+            let maxEdgeGe05 = 0; // 宣告最大點距變數
+            let maxEdgeLt05 = 0; 
+            let ptsGe05 = null; 
+            let ptsLt05 = null; 
             for (let i = 0; i < dTriangles.length; i += 3) {
+                const triIdx = i / 3;
+                if (deleted[triIdx] === 1) continue; 
                 const i0 = dTriangles[i]; const i1 = dTriangles[i + 1]; const i2 = dTriangles[i + 2];
+                // 計算過濾後三角形的三個邊長
+                const indices = [i0, i1, i2];
+                for (let j = 0; j < 3; j++) {
+                    const pA = parsedPoints[indices[j]];
+                    const pB = parsedPoints[indices[(j + 1) % 3]];
+                    const dx = pA.x - pB.x;
+                    const dy = pA.y - pB.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy); 
+                    const dz = Math.abs(pA.z - pB.z);          
+                    if (dz >= 0.5) { if (dist > maxEdgeGe05) { maxEdgeGe05 = dist; ptsGe05 = [pA, pB]; } }
+                    else { if (dist > maxEdgeLt05) { maxEdgeLt05 = dist; ptsLt05 = [pA, pB]; } }
+                }
                 const x0 = dPoints[i0 * 2], y0 = dPoints[i0 * 2 + 1], z0 = parsedPoints[i0].z;
                 const x1 = dPoints[i1 * 2], y1 = dPoints[i1 * 2 + 1], z1 = parsedPoints[i1].z;
                 const x2 = dPoints[i2 * 2], y2 = dPoints[i2 * 2 + 1], z2 = parsedPoints[i2].z;
                 const det = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2); const invDet = Math.abs(det) < 1e-9 ? 0 : 1.0 / det;
                 trianglesCache.push({ x0, y0, z0, x1, y1, z1, x2, y2, z2, invDet });
-                const triIdx = i / 3; pointToTriangle[i0].push(triIdx); pointToTriangle[i1].push(triIdx); pointToTriangle[i2].push(triIdx);
+                pointToTriangle[i0].push(cacheIdx); pointToTriangle[i1].push(cacheIdx); pointToTriangle[i2].push(cacheIdx);
+                cacheIdx++;
             }
             const bbox = turf.bbox(boundaryGeoJSON); const workerBlob = new Blob([document.getElementById('worker-code').textContent], { type: "text/javascript" });
             const worker = new Worker(URL.createObjectURL(workerBlob)); const targetZ = parseFloat(document.getElementById('target-z').value);
@@ -842,12 +958,17 @@
             worker.onmessage = function(e) {
                 if (loader) loader.style.display = 'none'; worker.terminate(); const data = e.data;
                 if (!data.success) { updateStatus("【運算失敗】" + data.error, "#ff4a4a"); return; }
-                latestDemResult = data; document.getElementById('download-btn').style.display = 'block';
+                latestDemResult = data; 
+                latestDemResult.filteredTriangles = filteredTriangles; 
+                latestDemResult.ptsGe05 = ptsGe05; 
+                latestDemResult.ptsLt05 = ptsLt05;
+                document.getElementById('download-btn').style.display = 'block';
                 render3DModel({ minX, maxX, minY, maxY, minZ, maxZ });
                 if (activeTab === 'constant-z') { document.getElementById('label-target-mode').innerText = "指定設計高程"; document.getElementById('res-target-z').innerText = `${targetZ.toFixed(1)} m`; }
                 else { document.getElementById('label-target-mode').innerText = "參考原地形"; document.getElementById('res-target-z').innerText = "GeoTIFF"; }
                 document.getElementById('res-area').innerText = `${data.validGridCount.toLocaleString()} m²`;
-                document.getElementById('res-hull').innerText = `${data.outOfHullCount.toLocaleString()} m²`;
+                const edgeResEl = document.getElementById('res-edge'); // 更新最大點距欄位
+                edgeResEl.innerText = `${maxEdgeGe05.toFixed(1)}m / ${maxEdgeLt05.toFixed(1)}m`;
                 document.getElementById('res-cut').innerText = `${data.totalCut.toFixed(1)} m³`;
                 document.getElementById('res-fill').innerText = `${data.totalFill.toFixed(1)} m³`;
                 const netVolume = data.totalCut - data.totalFill; const netEl = document.getElementById('res-net');
